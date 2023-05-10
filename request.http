@@ -1,0 +1,82 @@
+### Major
+###
+POST http://localhost:8000/api/major
+Content-Type: application/json
+
+{
+    "name": "Khối ngành khoa học xã hội và nhân văn"
+}
+
+### Specialization
+###
+POST http://localhost:8000/api/specialization
+Content-Type: application/json
+
+{
+    "name": "Kỹ thuật phần mềm",
+    "major": "645894942c714f9e1ad44ee3"
+}
+
+### Authentication
+###
+POST http://localhost:8000/api/authentication/lecturers/register
+Content-Type: application/json
+
+{
+    "username": "tranthingocanh",
+    "password": "tranthingocanh",
+    "name": "Trần Thị Ngọc Ánh",
+    "email": "tranthingocanh@gmail.com",
+    "major": "645894942c714f9e1ad44ee3",
+    "specialization": [
+        "645894942c714f9e1ad44ee3",
+        "6458954e34a09c5f3e8477e4"
+    ]
+}
+
+###
+POST http://localhost:8000/api/authentication/login
+Content-Type: application/json
+
+{
+    "username": "nguyenlyphi",
+    "password": "nguyenlyphi"
+}
+
+### Folder
+###
+POST http://localhost:8000/api/folder
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzNTkyMywiZXhwIjoxNjgzNjM2ODIzfQ.BmJ5Eb4vkKMnNvso_xX1vvnFcCRmjdgBG8jTr4Nj5qs
+
+{
+    "name": "My Folder 2"
+}
+
+###
+PUT http://localhost:8000/api/folder/645a0f22b772784f497886ba
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzODk4NSwiZXhwIjoxNjgzNjM5ODg1fQ.M-jT5CD07hFr-Mz9znXqdZNQjcj9poBND7ebT6R3w7A
+
+{
+    "name": "My sub_folder 2",
+    "parent_folder": "645a0435b2d7dff8f0db2299"
+}
+
+###
+GET http://localhost:8000/api/folder/645a0435b2d7dff8f0db2299
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYyNTMzMywiZXhwIjoxNjgzNjI2MjMzfQ.vjgW7XEy4ohzRuO8SHbSJ2ZefVfdxazJQPWxviwjTM8
+
+###
+GET http://localhost:8000/api/folder/user/64589e86d049783473729a5c
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYyNTMzMywiZXhwIjoxNjgzNjI2MjMzfQ.vjgW7XEy4ohzRuO8SHbSJ2ZefVfdxazJQPWxviwjTM8
+
+### File
+###
+POST http://localhost:8000/api/file
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzMjc0NCwiZXhwIjoxNjgzNjMzNjQ0fQ.ObIQly59Dfl9S-wnnJo7dznEOo0wme608ANt-D7JlkA
+
+{
+    "name": "My file"
+}
