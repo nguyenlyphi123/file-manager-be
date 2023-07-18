@@ -31,6 +31,10 @@ const FolderSchema = new Schema({
     type: Boolean,
     default: false,
   },
+  isDelete: {
+    type: Boolean,
+    default: false,
+  },
   createAt: {
     type: Date,
     default: Date.now(),
