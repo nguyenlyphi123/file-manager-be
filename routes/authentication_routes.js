@@ -39,10 +39,10 @@ router.post('/token', (req, res) => {
 
     const accessToken = jwt.sign(
       {
-        id: accountExists._id,
-        lecturers: accountExists.lecturers,
-        name: lecturersInfo.name,
-        email: lecturersInfo.email,
+        id: user._id,
+        lecturers: user.lecturers,
+        name: user.name,
+        email: user.email,
       },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: '15m' },
