@@ -4,10 +4,10 @@ const { Storage } = require('@google-cloud/storage');
 const path = require('path');
 const { authorizeUser } = require('../middlewares/authorization');
 const iconv = require('iconv-lite');
-const File = require('../models/File');
 const JSZip = require('jszip');
 
 const Folder = require('../models/Folder');
+const File = require('../models/File');
 
 const router = express.Router();
 
@@ -29,8 +29,11 @@ router.post(
   upload.single('file'),
   async (req, res) => {
     const file = req.file;
-    const parent_folder = req.body.parent_folder;
+    const parent_folder = req.body.folderId;
     const userId = req.data.id;
+
+    console.log('file', file);
+    console.log('parent_folder', parent_folder);
 
     const lastDotIndex = file.originalname.lastIndexOf('.');
 
@@ -70,8 +73,6 @@ router.post(
 
         const metadata = await process.getMetadata();
 
-        console.log(metadata);
-
         const file = new File({
           name: utf8Originalname,
           type: type,
@@ -81,7 +82,16 @@ router.post(
           author: userId,
         });
 
-        await file.save();
+        const uploadedFile = await file.save();
+        if (uploadedFile.parent_folder) {
+          await Folder.updateOne(
+            {
+              _id: uploadedFile.parent_folder,
+              author: userId,
+            },
+            { $push: { files: uploadedFile._id } },
+          );
+        }
 
         return res.json({
           success: true,
