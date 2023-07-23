@@ -9,22 +9,11 @@ const { authorizeUser } = require('../middlewares/authorization');
 
 let refreshTokens = [];
 
-router.get('/cookie/set', (req, res) => {
-  res.cookie('accessToken2', 'my cookie');
-  res.send('set cookie');
-});
-
-router.get('/cookie/get', (req, res) => {
-  const cookie = req.cookies;
-
-  res.send(cookie);
-});
-
 // @route POST api/authorization/token
 // @desc Create new accessToken for all user
 // @access Public
-router.post('/token', (req, res) => {
-  const refreshToken = req.body.token;
+router.post('/refresh-token', (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
 
   if (refreshToken == null)
     return res
@@ -39,16 +28,39 @@ router.post('/token', (req, res) => {
 
     const accessToken = jwt.sign(
       {
-        id: user._id,
+        id: user.id,
         lecturers: user.lecturers,
         name: user.name,
         email: user.email,
       },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '15m' },
+      { expiresIn: '1h' },
     );
 
-    return res.json({ accessToken });
+    const refreshToken = jwt.sign(
+      {
+        id: user.id,
+        lecturers: user.lecturers,
+        name: user.name,
+        email: user.email,
+      },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: '5h' },
+    );
+
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+    });
+
+    refreshTokens.push(refreshToken);
+
+    return res.json({ message: 'New accessToken created' });
   });
 });
 
@@ -84,7 +96,7 @@ router.get('/', authorizeUser, async (req, res) => {
         email: lecturersInfo.email,
       },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '15m' },
+      { expiresIn: '1h' },
     );
 
     const refreshToken = jwt.sign(
@@ -95,6 +107,7 @@ router.get('/', authorizeUser, async (req, res) => {
         email: lecturersInfo.email,
       },
       process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: '5h' },
     );
 
     refreshTokens.push(refreshToken);
@@ -107,6 +120,11 @@ router.get('/', authorizeUser, async (req, res) => {
     };
 
     res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       sameSite: 'strict',
     });
@@ -171,7 +189,7 @@ router.post('/login', async (req, res) => {
         email: lecturersInfo.email,
       },
       process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '15m' },
+      { expiresIn: '1h' },
     );
 
     const refreshToken = jwt.sign(
@@ -182,6 +200,7 @@ router.post('/login', async (req, res) => {
         email: lecturersInfo.email,
       },
       process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: '5h' },
     );
 
     refreshTokens.push(refreshToken);
@@ -194,6 +213,11 @@ router.post('/login', async (req, res) => {
     };
 
     res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      sameSite: 'strict',
+    });
+
+    res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       sameSite: 'strict',
     });
@@ -213,11 +237,16 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// @route DELETE api/authorization/logout
+// @route POST api/authorization/logout
 // @desc Logout for all user
 // @access Public
-router.delete('/logout', (req, res) => {
-  refreshTokens = refreshTokens.filter((token) => token !== req.body.token);
+router.post('/logout', (req, res) => {
+  refreshTokens = refreshTokens.filter(
+    (token) => token !== req.body.refreshToken,
+  );
+
+  res.clearCookie('accessToken');
+  res.clearCookie('refreshToken');
 
   res.json({ success: true, message: 'Logout successfully' });
 });

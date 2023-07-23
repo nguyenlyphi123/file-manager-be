@@ -10,11 +10,13 @@ const FileSchema = new Schema({
     type: String,
     enum: [
       'doc',
+      'docx',
       'zip',
       'exe',
       'jpg',
       'png',
       'ppt',
+      'pdf',
       'svg',
       'txt',
       'xlsx',
@@ -43,6 +45,10 @@ const FileSchema = new Schema({
   isDelete: {
     type: Boolean,
     default: false,
+  },
+  link: {
+    type: String,
+    default: null,
   },
   createAt: {
     type: Date,

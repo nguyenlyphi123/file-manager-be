@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const Folder = require('../models/Folder');
+const File = require('../models/File');
 const authorization = require('../middlewares/authorization');
 
 // @route POST api/folder
@@ -9,6 +10,7 @@ const authorization = require('../middlewares/authorization');
 // @access Private
 router.post('/', authorization.authorizeUser, async (req, res) => {
   const { name, parent_folder, sub_folder, files } = req.body;
+  const author = req.data.id;
 
   if (!name)
     return res.status(400).json({
@@ -17,8 +19,6 @@ router.post('/', authorization.authorizeUser, async (req, res) => {
     });
 
   try {
-    const author = req.data.id;
-
     if (!author)
       return res.status(403).json({
         success: false,
@@ -33,28 +33,18 @@ router.post('/', authorization.authorizeUser, async (req, res) => {
       files,
     });
 
-    await createFolder.save().then(async (folder) => {
-      if (folder.parent_folder) {
-        try {
-          const parentFolder = await Folder.findById(folder.parent_folder);
+    await createFolder.save();
 
-          let subFolder = parentFolder.sub_folder;
-          subFolder.push(folder._id);
-
-          await Folder.findOneAndUpdate(
-            { _id: parentFolder._id },
-            {
-              sub_folder: subFolder,
-              modifiedAt: Date.now(),
-            },
-            { new: true },
-          );
-        } catch (error) {
-          console.log(error);
-          return;
-        }
-      }
-    });
+    if (parent_folder) {
+      await Folder.updateOne(
+        { _id: parent_folder },
+        {
+          $push: { sub_folder: createFolder._id },
+          $inc: { size: createFolder.size ? createFolder.size : 0 },
+          $set: { modifiedAt: Date.now() },
+        },
+      );
+    }
 
     res.json({
       success: true,
@@ -74,10 +64,10 @@ router.post('/', authorization.authorizeUser, async (req, res) => {
 // @access Private
 router.post('/copy', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
-  const { folderData, newParentFolderId } = req.body;
+  const { data, folderId } = req.body;
 
   try {
-    const { _id, ...copyFolderData } = folderData;
+    const { _id, ...copyFolderData } = data;
 
     const copyFolder = new Folder({
       ...copyFolderData,
@@ -85,7 +75,7 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
       isStar: false,
     });
 
-    if (!newParentFolderId) {
+    if (!folderId) {
       copyFolder.parent_folder = null;
 
       await copyFolder.save();
@@ -97,7 +87,7 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
     }
 
     const newParentFolder = await Folder.findOne({
-      _id: newParentFolderId,
+      _id: folderId,
       author: userId,
     });
 
@@ -110,8 +100,12 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
 
     const copiedFolder = await copyFolder.save();
     await Folder.updateOne(
-      { _id: newParentFolderId, author: userId },
-      { $push: { sub_folder: copiedFolder._id } },
+      { _id: folderId, author: userId },
+      {
+        $push: { sub_folder: copiedFolder._id },
+        $inc: { size: copiedFolder.size ? copiedFolder.size : 0 },
+        $set: { modifiedAt: Date.now() },
+      },
       { new: true },
     );
 
@@ -133,30 +127,34 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
 // @access Private
 router.post('/move', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
-  const { folderData, newParentFolderId } = req.body;
+  const { data, folderId } = req.body;
 
   try {
     const bulkOps = [];
 
-    if (!newParentFolderId) {
+    if (!folderId) {
       // Remove folder from old parent folder and update new parent_folder
       bulkOps.push(
         {
           updateOne: {
-            filter: { _id: folderData.parent_folder, author: userId },
-            update: { $pull: { sub_folder: folderData._id } },
+            filter: { _id: data.parent_folder, author: userId },
+            update: {
+              $pull: { sub_folder: data._id },
+              $set: { modifiedAt: Date.now() },
+              $inc: { size: -data.size },
+            },
           },
         },
         {
           updateOne: {
-            filter: { _id: folderData._id, author: userId },
+            filter: { _id: data._id, author: userId },
             update: { parent_folder: null },
           },
         },
       );
     } else {
       const newParentFolder = await Folder.findOne({
-        _id: newParentFolderId,
+        _id: folderId,
         author: userId,
       }).lean();
 
@@ -165,14 +163,18 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
           .status(404)
           .json({ success: false, message: 'Destination folder not found' });
 
-      const oldParentFolderId = folderData.parent_folder;
+      const oldParentFolderId = data.parent_folder;
 
       if (oldParentFolderId) {
         // Remove folder from old parent folder
         bulkOps.push({
           updateOne: {
             filter: { _id: oldParentFolderId, author: userId },
-            update: { $pull: { sub_folder: folderData._id } },
+            update: {
+              $pull: { sub_folder: data._id },
+              $set: { modifiedAt: Date.now() },
+              $inc: { size: -data.size },
+            },
           },
         });
       }
@@ -181,14 +183,18 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
       bulkOps.push(
         {
           updateOne: {
-            filter: { _id: newParentFolderId, author: userId },
-            update: { $push: { sub_folder: folderData._id } },
+            filter: { _id: folderId, author: userId },
+            update: {
+              $push: { sub_folder: data._id },
+              $set: { modifiedAt: Date.now() },
+              $inc: { size: data.size },
+            },
           },
         },
         {
           updateOne: {
-            filter: { _id: folderData._id, author: userId },
-            update: { parent_folder: newParentFolderId },
+            filter: { _id: data._id, author: userId },
+            update: { parent_folder: folderId },
           },
         },
       );
@@ -201,7 +207,7 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
     res.json({
       status: true,
       message: 'Folder has been moved successfully',
-      data: folderData,
+      data: data,
     });
   } catch (error) {
     console.error(error);
@@ -499,7 +505,11 @@ router.delete('/:folderId', authorization.authorizeUser, async (req, res) => {
     if (folderExists.parent_folder) {
       await Folder.findOneAndUpdate(
         { _id: folderExists.parent_folder },
-        { $pull: { sub_folder: folderExists._id } },
+        {
+          $pull: { sub_folder: folderExists._id },
+          $set: { modifiedAt: Date.now() },
+          $inc: { size: -folderExists.size },
+        },
       );
     }
 
@@ -508,13 +518,10 @@ router.delete('/:folderId', authorization.authorizeUser, async (req, res) => {
     await findAllSubFolder(folderId, folderDeleteArray);
 
     // Delete all folders using Promise.all
-    const promises = folderDeleteArray.map(async (id) => {
-      try {
-        await Folder.findByIdAndDelete(id);
-      } catch (error) {
-        throw error;
-      }
-    });
+    const promises = [
+      Folder.deleteMany({ _id: { $in: folderDeleteArray } }),
+      File.deleteMany({ parent_folder: { $in: folderDeleteArray } }),
+    ];
 
     await Promise.all(promises);
 
@@ -560,8 +567,8 @@ router.get(
         isDelete: false,
       })
         .populate('parent_folder')
-        .populate('sub_folder');
-      //   .populate('files');
+        .populate('sub_folder')
+        .populate('files');
 
       if (!folders)
         return res
@@ -596,8 +603,8 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
       isDelete: false,
     })
       .populate('parent_folder')
-      .populate('sub_folder');
-    //   .populate('files');
+      .populate('sub_folder')
+      .populate('files');
 
     if (!folders)
       return res
@@ -626,8 +633,8 @@ router.get('/starred', authorization.authorizeUser, async (req, res) => {
       isDelete: false,
     })
       .populate('parent_folder')
-      .populate('sub_folder');
-    //   .populate('files');
+      .populate('sub_folder')
+      .populate('files');
 
     if (!folders)
       return res
@@ -652,8 +659,8 @@ router.get('/trash', authorization.authorizeUser, async (req, res) => {
   try {
     const folders = await Folder.find({ author: userId, isDelete: true })
       .populate('parent_folder')
-      .populate('sub_folder');
-    //   .populate('files');
+      .populate('sub_folder')
+      .populate('files');
 
     if (!folders)
       return res
@@ -668,5 +675,29 @@ router.get('/trash', authorization.authorizeUser, async (req, res) => {
       .json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+// get folder size
+const getFolderSize = async (folderId) => {
+  try {
+    let totalSize = 0;
+
+    // Get the folder by its ID
+    const folder = await Folder.findById(folderId).populate('sub_folder files');
+
+    // Calculate the size of files in the current folder
+    for (const file of folder.files) {
+      totalSize += file.size;
+    }
+
+    // Calculate the size of sub-folders recursively
+    for (const subFolder of folder.sub_folder) {
+      totalSize += await getFolderSize(subFolder._id);
+    }
+
+    return totalSize;
+  } catch (error) {
+    throw error;
+  }
+};
 
 module.exports = router;

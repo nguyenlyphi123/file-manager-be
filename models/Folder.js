@@ -27,6 +27,10 @@ const FolderSchema = new Schema({
       ref: 'file',
     },
   ],
+  size: {
+    type: Number,
+    default: 0,
+  },
   isStar: {
     type: Boolean,
     default: false,

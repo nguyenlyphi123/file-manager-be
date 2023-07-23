@@ -12,7 +12,10 @@ const authorization = {
 
     try {
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, data) => {
-        if (err) return res.status(401).json({ message: 'Invalid token' });
+        if (err)
+          return res
+            .status(403)
+            .json({ message: 'Invalid token or token was expired' });
 
         req.data = data;
         next();
