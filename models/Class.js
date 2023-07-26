@@ -1,19 +1,22 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-const AccountSchema = new Schema({
-  username: {
+const ClassSchema = new Schema({
+  name: {
     type: String,
     required: true,
   },
-  password: {
-    type: String,
+  specialization: {
+    type: Schema.Types.ObjectId,
+    ref: 'specialization',
     required: true,
   },
-  permission: {
-    type: String,
-    enum: ['ADMIN', 'MANAGER', 'LECTURERS', 'PUPIL'],
-  },
+  pupil: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: 'pupil',
+    },
+  ],
   createAt: {
     type: Date,
     default: Date.now(),
@@ -24,4 +27,4 @@ const AccountSchema = new Schema({
   },
 });
 
-module.exports = mongoose.model('account', AccountSchema);
+module.exports = mongoose.model('class', ClassSchema);

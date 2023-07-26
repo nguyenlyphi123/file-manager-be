@@ -32,9 +32,6 @@ router.post(
     const parent_folder = req.body.folderId;
     const userId = req.data.id;
 
-    console.log('file', file);
-    console.log('parent_folder', parent_folder);
-
     const lastDotIndex = file.originalname.lastIndexOf('.');
 
     const fileName = file.originalname.substring(0, lastDotIndex);
@@ -73,14 +70,18 @@ router.post(
 
         const metadata = await process.getMetadata();
 
-        const file = new File({
+        const fileData = {
           name: utf8Originalname,
           type: type,
           size: metadata[0].size,
-          parent_folder: parent_folder ? parent_folder : null,
-          link: metadata[0].mediaLink,
           author: userId,
-        });
+        };
+
+        if (parent_folder) {
+          fileData.parent_folder = parent_folder;
+        }
+
+        const file = new File(fileData);
 
         const uploadedFile = await file.save();
         if (uploadedFile.parent_folder) {
@@ -116,8 +117,23 @@ router.post(
 router.post('/download', authorizeUser, async (req, res) => {
   const userId = req.data.id;
   const fileData = req.body.data;
+  const email = req.data.email;
 
   try {
+    const fileExists = await File.findOne({ name: fileData.name });
+
+    if (
+      fileExists.author !== userId &&
+      (!fileExists.sharedTo.includes(email) ||
+        !fileExists.permission.includes(process.env.PERMISSION_DOWNLOAD))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Permission denied! You need to contact your manager to download this file',
+      });
+    }
+
     const fileName = `${fileData.name}_${userId}`;
     const [file] = await bucket.file(fileName).download();
 
@@ -144,7 +160,24 @@ router.post('/download', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/folder/download', authorizeUser, async (req, res) => {
   const folderId = req.body.id;
+  const userId = req.data.id;
+  const email = req.data.email;
+
   try {
+    const folder = await Folder.findById(folderId);
+
+    if (
+      folder.author !== userId &&
+      (!folder.sharedTo.includes(email) ||
+        !folder.permission.includes(process.env.PERMISSION_DOWNLOAD))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Permission denied! You need to contact your manager to download this folder',
+      });
+    }
+
     const zip = new JSZip();
 
     const folders = await getAllFilesInSubFolders(folderId);

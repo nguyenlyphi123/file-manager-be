@@ -5,7 +5,9 @@ const argon2 = require('argon2');
 
 const Account = require('../models/Account');
 const Lecturers = require('../models/Lecturers');
+const Pupil = require('../models/Pupil');
 const { authorizeUser } = require('../middlewares/authorization');
+const Class = require('../models/Class');
 
 let refreshTokens = [];
 
@@ -29,7 +31,7 @@ router.post('/refresh-token', (req, res) => {
     const accessToken = jwt.sign(
       {
         id: user.id,
-        lecturers: user.lecturers,
+        permission: user.permission,
         name: user.name,
         email: user.email,
       },
@@ -40,7 +42,7 @@ router.post('/refresh-token', (req, res) => {
     const refreshToken = jwt.sign(
       {
         id: user.id,
-        lecturers: user.lecturers,
+        permission: user.permission,
         name: user.name,
         email: user.email,
       },
@@ -78,46 +80,64 @@ router.get('/', authorizeUser, async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Account not found' });
 
-    const lecturersInfo = await Lecturers.findOne({
-      account_id: accountExists._id,
-    });
+    let accountData = {
+      id: null,
+      permission: null,
+      name: null,
+      email: null,
+    };
 
-    if (!lecturersInfo)
+    switch (accountExists.permission) {
+      case process.env.PERMISSION_LECTURERS:
+        const lecturersInfo = await Lecturers.findOne({
+          account_id: accountExists._id,
+        });
+        accountData = {
+          id: accountExists._id,
+          permission: accountExists.permission,
+          name: lecturersInfo.name,
+          email: lecturersInfo.email,
+        };
+        break;
+
+      case process.env.PERMISSION_PUPIL:
+        const pupilInfo = await Pupil.findOne({
+          account_id: accountExists._id,
+        });
+        accountData = {
+          id: accountExists._id,
+          permission: accountExists.permission,
+          name: pupilInfo.name,
+          email: pupilInfo.email,
+        };
+        break;
+
+      default:
+        break;
+    }
+
+    if (
+      !accountData.id ||
+      !accountData.permission ||
+      !accountData.name ||
+      !accountData.email
+    )
       return res.status(400).json({
         success: false,
         message: 'Oop! Looks like this is a zoombie account',
       });
 
-    const accessToken = jwt.sign(
-      {
-        id: accountExists._id,
-        lecturers: accountExists.lecturers,
-        name: lecturersInfo.name,
-        email: lecturersInfo.email,
-      },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '1h' },
-    );
+    const accessToken = jwt.sign(accountData, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: '1h',
+    });
 
     const refreshToken = jwt.sign(
-      {
-        id: accountExists._id,
-        lecturers: accountExists.lecturers,
-        name: lecturersInfo.name,
-        email: lecturersInfo.email,
-      },
+      accountData,
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: '5h' },
     );
 
     refreshTokens.push(refreshToken);
-
-    const userData = {
-      id: accountExists._id,
-      lecturers: accountExists.lecturers,
-      name: lecturersInfo.name,
-      email: lecturersInfo.email,
-    };
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
@@ -134,7 +154,7 @@ router.get('/', authorizeUser, async (req, res) => {
       message: 'Login successfully',
       accessToken,
       refreshToken,
-      data: userData,
+      data: accountData,
     });
   } catch (error) {
     console.log(error);
@@ -171,46 +191,64 @@ router.post('/login', async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Username or password is incorrect' });
 
-    const lecturersInfo = await Lecturers.findOne({
-      account_id: accountExists._id,
-    });
+    let accountData = {
+      id: null,
+      permission: null,
+      name: null,
+      email: null,
+    };
 
-    if (!lecturersInfo)
+    switch (accountExists.permission) {
+      case process.env.PERMISSION_LECTURERS:
+        const lecturersInfo = await Lecturers.findOne({
+          account_id: accountExists._id,
+        });
+        accountData = {
+          id: accountExists._id,
+          permission: accountExists.permission,
+          name: lecturersInfo.name,
+          email: lecturersInfo.email,
+        };
+        break;
+
+      case process.env.PERMISSION_PUPIL:
+        const pupilInfo = await Pupil.findOne({
+          account_id: accountExists._id,
+        });
+        accountData = {
+          id: accountExists._id,
+          permission: accountExists.permission,
+          name: pupilInfo.name,
+          email: pupilInfo.email,
+        };
+        break;
+
+      default:
+        break;
+    }
+
+    if (
+      !accountData.id ||
+      !accountData.permission ||
+      !accountData.name ||
+      !accountData.email
+    )
       return res.status(400).json({
         success: false,
         message: 'Oop! Looks like this is a zoombie account',
       });
 
-    const accessToken = jwt.sign(
-      {
-        id: accountExists._id,
-        lecturers: accountExists.lecturers,
-        name: lecturersInfo.name,
-        email: lecturersInfo.email,
-      },
-      process.env.ACCESS_TOKEN_SECRET,
-      { expiresIn: '1h' },
-    );
+    const accessToken = jwt.sign(accountData, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: '1h',
+    });
 
     const refreshToken = jwt.sign(
-      {
-        id: accountExists._id,
-        lecturers: accountExists.lecturers,
-        name: lecturersInfo.name,
-        email: lecturersInfo.email,
-      },
+      accountData,
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: '5h' },
     );
 
     refreshTokens.push(refreshToken);
-
-    const userData = {
-      id: accountExists._id,
-      lecturers: accountExists.lecturers,
-      name: lecturersInfo.name,
-      email: lecturersInfo.email,
-    };
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
@@ -227,7 +265,7 @@ router.post('/login', async (req, res) => {
       message: 'Login successfully',
       accessToken,
       refreshToken,
-      data: userData,
+      data: accountData,
     });
   } catch (error) {
     console.log(error);
@@ -277,7 +315,7 @@ router.post('/lecturers/register', async (req, res) => {
     let account = new Account({
       username,
       password: hashedPassword,
-      lecturers: true,
+      permission: process.env.PERMISSION_LECTURERS,
     });
 
     await account.save().then(async (account) => {
@@ -290,6 +328,64 @@ router.post('/lecturers/register', async (req, res) => {
       });
 
       await accountInfo.save();
+
+      res.json({
+        success: true,
+        message: 'Account has been created successfully',
+      });
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// Pupils //
+// @route POST api/authorization/pupil/register
+// @desc Create new account for pupils
+// @access Public
+router.post('/pupil/register', async (req, res) => {
+  const { username, password, name, email, specialization, class_ } = req.body;
+
+  if (!username || !password || !name || !email || !specialization || !class_)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
+  try {
+    const usernameExists = await Account.findOne({ username });
+
+    if (usernameExists)
+      return res
+        .status(400)
+        .json({ success: false, message: 'Username already exists' });
+
+    let hashedPassword = await argon2.hash(password);
+
+    let account = new Account({
+      username,
+      password: hashedPassword,
+      permission: process.env.PERMISSION_PUPIL,
+    });
+
+    await account.save().then(async (account) => {
+      let accountInfo = new Pupil({
+        account_id: account._id,
+        name,
+        email,
+        specialization,
+        class: class_,
+      });
+
+      await accountInfo.save();
+      await Class.updateOne(
+        { _id: class_ },
+        { $push: { pupil: account._id } },
+        { new: true },
+      );
 
       res.json({
         success: true,

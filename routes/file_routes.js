@@ -78,9 +78,20 @@ router.post('/', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/copy', authorizeUser, async (req, res) => {
   const userId = req.data.id;
+  const email = req.data.email;
   const { data, folderId } = req.body;
 
   try {
+    if (
+      data.author !== userId &&
+      (!data.sharedTo.includes(email) ||
+        !data.permission.includes(process.env.PERMISSION_EDIT))
+    )
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+
     const currentName = `${data.name}_${userId}`;
     let destName = currentName;
 
@@ -137,6 +148,12 @@ router.post('/move', authorizeUser, async (req, res) => {
   const { data, folderId } = req.body;
 
   try {
+    if (data.author !== userId)
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+
     const newParentFolder = await Folder.findOne({
       _id: folderId,
       author: userId,
@@ -216,6 +233,113 @@ const gcDeleteFile = async (fileName) => {
   }
 };
 
+// @route POST api/file/multiple-delete
+// @desc Delete multiple files
+// @access Private
+router.post('/multiple-delete', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const { files } = req.body;
+
+  try {
+    const promises = files.map(async (file) => {
+      await File.deleteOne({ _id: file._id, author: userId });
+      if (file.parent_folder) {
+        await Folder.findByIdAndUpdate(file.parent_folder, {
+          $pull: { files: file._id },
+          $inc: { size: -file.size },
+          $set: { modifiedAt: Date.now() },
+        });
+      }
+
+      const gcFileName = `${file.name}_${userId}`;
+
+      return await gcDeleteFile(gcFileName);
+    });
+
+    await Promise.all(promises);
+    res.json({
+      success: true,
+      message: 'Files have been deleted successfully',
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route POST api/file/share
+// @desc Share file by fileId to emails
+// @access Private
+router.post('/share', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const { fileId, emails, permissions } = req.body;
+
+  if (!fileId || !emails)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
+  try {
+    const file = await File.findOne({
+      _id: fileId,
+    });
+
+    if (!file)
+      return res
+        .status(404)
+        .json({ success: false, message: 'File not found' });
+
+    if (!file.author === userId) {
+      if (
+        !file.sharedTo.includes(userId) &&
+        !file.permission.includes(process.env.PERMISSION_SHARE)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'You do not have permission to do this',
+        });
+      }
+
+      await Folder.updateOne(
+        {
+          _id: file,
+        },
+        {
+          $addToSet: { sharedTo: emails },
+          $set: { modifiedAt: Date.now() },
+        },
+        { new: true },
+      );
+
+      res.json({
+        success: true,
+        message: 'Folder has been shared successfully',
+      });
+    }
+
+    await File.updateOne(
+      {
+        _id: fileId,
+      },
+      {
+        $addToSet: { sharedTo: emails, permission: permissions },
+        $set: { modifiedAt: Date.now() },
+      },
+      { new: true },
+    );
+
+    res.json({ success: true, message: 'File has been shared successfully' });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route PUT api/file/:id/star
 // @desc Star file by fileId
 // @access Private
@@ -227,9 +351,10 @@ router.put('/:id/star', authorizeUser, async (req, res) => {
     const file = await File.findOne({ _id: fileId, author: userId });
 
     if (!file)
-      return res
-        .status(404)
-        .json({ success: false, message: 'File not found' });
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
 
     await File.findOneAndUpdate(
       { _id: fileId, author: userId },
@@ -260,9 +385,10 @@ router.put('/:id/unstar', authorizeUser, async (req, res) => {
     const file = await File.findOne({ _id: fileId, author: userId });
 
     if (!file)
-      return res
-        .status(404)
-        .json({ success: false, message: 'File not found' });
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
 
     await File.findOneAndUpdate(
       { _id: fileId, author: userId },
@@ -282,14 +408,60 @@ router.put('/:id/unstar', authorizeUser, async (req, res) => {
   }
 });
 
+// @route PUT api/file/multiple-unstar
+// @desc Unstar multiple files
+// @access Private
+router.put('/multiple-unstar', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const { files } = req.body;
+
+  try {
+    const promises = files.map(async (file) => {
+      return await File.findOneAndUpdate(
+        { _id: file._id, author: userId },
+        { isStar: false },
+      );
+    });
+
+    await Promise.all(promises);
+    res.json({
+      success: true,
+      message: 'Files have been unstarred successfully',
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route PUT api/file/rename
 // @desc Rename file
 // @access Private
 router.put('/rename', authorizeUser, async (req, res) => {
   const userId = req.data.id;
+  const email = req.data.email;
   const { fileData, name } = req.body;
 
+  if (!name)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
   try {
+    if (
+      fileData.author !== userId &&
+      (!fileData.sharedTo.includes(email) ||
+        !fileData.permission.includes(process.env.PERMISSION_EDIT))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+    }
+
     await File.updateOne({ _id: fileData._id, author: userId }, { name });
     await gcRenameFile(fileData.name, name);
 
@@ -315,9 +487,20 @@ const gcRenameFile = async (fileName, destFileName) => {
 // @access Private
 router.put('/trash', authorizeUser, async (req, res) => {
   const userId = req.data.id;
+  const email = req.data.email;
   const { fileId } = req.body;
 
   try {
+    const file = await File.findOne({ _id: fileId });
+
+    if (file.author !== userId && file.sharedTo.includes(email)) {
+      await File.updateOne({ _id: fileId }, { $pull: { sharedTo: email } });
+      return res.json({
+        success: true,
+        message: 'File has been removed from your drive',
+      });
+    }
+
     await File.updateOne({ _id: fileId, author: userId }, { isDelete: true });
 
     res.json({
@@ -343,6 +526,34 @@ router.put('/restore', authorizeUser, async (req, res) => {
     await File.updateOne({ _id: fileId, author: userId }, { isDelete: false });
 
     res.json({ success: true, message: 'File has been restored successfully' });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route PUT api/file/restore-multiple
+// @desc Restore multiple files
+// @access Private
+router.put('/restore-multiple', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const { files } = req.body;
+
+  try {
+    const promises = files.map(async (file) => {
+      return await File.updateOne(
+        { _id: file._id, author: userId },
+        { isDelete: false },
+      );
+    });
+
+    await Promise.all(promises);
+    res.json({
+      success: true,
+      message: 'Files have been restored successfully',
+    });
   } catch (error) {
     console.log(error);
     return res
@@ -391,6 +602,50 @@ router.get('/trash', authorizeUser, async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: 'Files not found' });
+
+    res.json({ success: true, data: files });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/file/star
+// @desc Get all starred files
+// @access Private
+router.get('/star', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  try {
+    const files = await File.find({ author: userId, isStar: true }).populate(
+      'parent_folder',
+    );
+
+    if (!files)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Files not found' });
+
+    res.json({ success: true, data: files });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/file/shared
+// @desc Get all shared files
+// @access Private
+router.get('/shared', authorizeUser, async (req, res) => {
+  const email = req.data.email;
+
+  try {
+    const files = await File.find({
+      sharedTo: { $elemMatch: { $eq: email } },
+    }).populate('parent_folder');
 
     res.json({ success: true, data: files });
   } catch (error) {

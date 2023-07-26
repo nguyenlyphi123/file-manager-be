@@ -11,6 +11,8 @@ const authenticationRouter = require('./routes/authentication_routes');
 const folderRouter = require('./routes/folder_routes');
 const fileRouter = require('./routes/file_routes');
 const gcRouter = require('./routes/gc_routes');
+const classRouter = require('./routes/class_routes');
+const pupilRouter = require('./routes/pupil_routes');
 
 const connectDB = async () => {
   try {
@@ -43,6 +45,8 @@ app.use('/api/authentication', authenticationRouter);
 app.use('/api/folder', folderRouter);
 app.use('/api/file', fileRouter);
 app.use('/api/gc', gcRouter);
+app.use('/api/class', classRouter);
+app.use('/api/pupil', pupilRouter);
 
 app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),

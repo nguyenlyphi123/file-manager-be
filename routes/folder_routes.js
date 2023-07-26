@@ -5,6 +5,14 @@ const Folder = require('../models/Folder');
 const File = require('../models/File');
 const authorization = require('../middlewares/authorization');
 
+const Permission = [
+  process.env.PERMISSION_READ,
+  process.env.PERMISSION_WRITE,
+  process.env.PERMISSION_READ_WRITE,
+  process.env.PERMISSION_DOWNLOAD,
+  process.env.PERMISSION_SHARE,
+];
+
 // @route POST api/folder
 // @desc Create new folder
 // @access Private
@@ -67,12 +75,31 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
   const { data, folderId } = req.body;
 
   try {
-    const { _id, ...copyFolderData } = data;
+    if (
+      data.author !== userId &&
+      (!data.sharedTo.includes(email) ||
+        !data.permission.includes(process.env.PERMISSION_EDIT))
+    )
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+
+    const {
+      _id,
+      sharedTo,
+      permission,
+      createAt,
+      modifiedAt,
+      lastOpened,
+      ...copyFolderData
+    } = data;
 
     const copyFolder = new Folder({
       ...copyFolderData,
       author: userId,
       isStar: false,
+      isDelete: false,
     });
 
     if (!folderId) {
@@ -130,6 +157,12 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
   const { data, folderId } = req.body;
 
   try {
+    if (data.author !== userId)
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+
     const bulkOps = [];
 
     if (!folderId) {
@@ -217,24 +250,255 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
   }
 });
 
+// @route DELETE api/folder/delete
+// @desc Delete folder by folderId
+// @access Private
+router.post('/delete', authorization.authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const folderId = req.data.folderId;
+  const folderDeleteArray = [];
+
+  try {
+    // Find the folder to delete
+    const folderExists = await Folder.findOne({
+      _id: folderId,
+      author: userId,
+    });
+
+    if (!folderExists) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Folder does not exist or you do not have permission to delete it',
+      });
+    }
+
+    // Fetch the parent folder (if it exists) and update it
+    if (folderExists.parent_folder) {
+      await Folder.updateOne(
+        { _id: folderExists.parent_folder },
+        {
+          $pull: { sub_folder: folderExists._id },
+          $set: { modifiedAt: Date.now() },
+          $inc: { size: -folderExists.size },
+        },
+      );
+    }
+
+    // Populate the folderDeleteArray
+    folderDeleteArray.push(folderExists._id);
+    await findAllSubFolder(folderId, folderDeleteArray);
+
+    // Fetch files associated with the target folders
+    const filesToDelete = await File.find({
+      parent_folder: { $in: folderDeleteArray },
+    });
+
+    // Delete files from the Google Cloud Storage
+    if (filesToDelete.length > 0) {
+      await Promise.all(
+        filesToDelete.map(async (fileData) => {
+          const gcFileName = `${fileData.name}_${userId}`;
+          await gcDeleteFile(gcFileName);
+        }),
+      );
+    }
+
+    // Delete all folders and associated files using Promise.all
+    await Promise.all([
+      Folder.deleteMany({ _id: { $in: folderDeleteArray } }),
+      File.deleteMany({ parent_folder: { $in: folderDeleteArray } }),
+    ]);
+
+    return res.json({
+      success: true,
+      message: 'Folder and associated files have been deleted successfully',
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+const findAllSubFolder = async (rootFolderId, folderDeleteArray) => {
+  try {
+    const subFolders = await Folder.find({ parent_folder: rootFolderId });
+
+    if (subFolders.length > 0) {
+      for (const folder of subFolders) {
+        folderDeleteArray.push(folder._id);
+        await findAllSubFolder(folder._id, folderDeleteArray);
+      }
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+const gcDeleteFile = async (fileName) => {
+  try {
+    await bucket.file(fileName).delete();
+  } catch (error) {
+    throw error;
+  }
+};
+
+// @route POST api/folder/mutiple-delete
+// @desc Delete multiple folders by folder list
+// @access Private
+router.post(
+  '/mutiple-delete',
+  authorization.authorizeUser,
+  async (req, res) => {
+    const userId = req.data.id;
+    const folders = req.body.folders;
+    const folderIdsToDelete = folders.map((folder) => folder._id);
+
+    try {
+      const targetFolders = await Folder.find({
+        _id: { $in: folderIdsToDelete },
+        author: userId,
+      });
+
+      const allFolderIdsToDelete = [];
+
+      targetFolders.forEach((folder) => {
+        allFolderIdsToDelete.push(folder._id);
+        findAllSubFolder(folder._id, allFolderIdsToDelete);
+      });
+
+      const filesToDelete = await File.find({
+        parent_folder: { $in: allFolderIdsToDelete },
+      });
+
+      if (filesToDelete.length > 0) {
+        await Promise.all(
+          filesToDelete.map(async (fileData) => {
+            const gcFileName = `${fileData.name}_${userId}`;
+            await gcDeleteFile(gcFileName);
+          }),
+        );
+      }
+
+      await Promise.all([
+        Folder.deleteMany({ _id: { $in: allFolderIdsToDelete } }),
+        File.deleteMany({ parent_folder: { $in: allFolderIdsToDelete } }),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Folders and associated files have been deleted successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
+  },
+);
+
+// @route POST api/folder/share
+// @desc Share folder by folderId to emails
+// @access Private
+router.post('/share', authorization.authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const { folderId, emails, permissions } = req.body;
+
+  if (!folderId || !emails)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
+  try {
+    const folder = await Folder.findOne({
+      _id: folderId,
+    });
+
+    if (!folder)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Folder not found' });
+
+    if (!folder.author === userId) {
+      if (
+        !folder.sharedTo.includes(userId) &&
+        !folder.permission.includes(process.env.PERMISSION_SHARE)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'You do not have permission to do this',
+        });
+      }
+
+      await Folder.updateOne(
+        {
+          _id: folderId,
+        },
+        {
+          $addToSet: { sharedTo: emails },
+          $set: { modifiedAt: Date.now() },
+        },
+        { new: true },
+      );
+
+      res.json({
+        success: true,
+        message: 'Folder has been shared successfully',
+      });
+    }
+
+    await Folder.updateOne(
+      {
+        _id: folderId,
+      },
+      {
+        $addToSet: { sharedTo: emails, permission: permissions },
+        $set: { modifiedAt: Date.now() },
+      },
+      { new: true },
+    );
+
+    res.json({ success: true, message: 'Folder has been shared successfully' });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route PUT api/folder/:folderId
 // @desc Update folder by folderId
 // @access Private
 router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
   const folderId = req.params.folderId;
+  const userId = req.data.id;
+  const email = req.data.email;
 
   const { name, parent_folder } = req.body;
 
   try {
     const folderBeforeChange = await Folder.findOne({
       _id: folderId,
-      author: req.data.id,
     });
 
-    if (!folderBeforeChange)
-      return res
-        .status(403)
-        .json({ success: false, message: 'You are not authorized to do this' });
+    console.log(folderBeforeChange);
+
+    if (
+      folderBeforeChange.author !== userId &&
+      (!folderBeforeChange.sharedTo.includes(email) ||
+        !folderBeforeChange.permission.includes(process.env.PERMISSION_EDIT))
+    ) {
+      console.log('cc');
+      return res.status(400).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+    }
 
     const updateData = {
       name,
@@ -315,11 +579,18 @@ router.put('/unstar/single', authorization.authorizeUser, async (req, res) => {
   const folderId = req.body.folderId;
 
   try {
-    await Folder.findOneAndUpdate(
+    const folder = await Folder.findOneAndUpdate(
       { _id: folderId, author: userId },
       { isStar: false },
       { new: true },
     );
+
+    if (!folder) {
+      return res.status(404).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
+    }
 
     return res.json({
       success: true,
@@ -371,6 +642,7 @@ router.put(
   authorization.authorizeUser,
   async (req, res) => {
     const userId = req.data.id;
+    const email = req.data.email;
     const folderId = req.params.folderId;
     const folderDeleteArray = [];
 
@@ -378,14 +650,27 @@ router.put(
       // Find the folder to delete
       const folderExists = await Folder.findOne({
         _id: folderId,
-        author: userId,
       });
+
+      if (
+        folderExists.author !== userId &&
+        folderExists.sharedTo.includes(email)
+      ) {
+        await Folder.updateOne(
+          { _id: folderId },
+          { $pull: { sharedTo: email } },
+        );
+
+        return res.json({
+          success: true,
+          message: 'Folder has been removed from your drive',
+        });
+      }
 
       if (!folderExists) {
         return res.status(404).json({
           success: false,
-          message:
-            'Folder does not exists or you are not permission to do this',
+          message: 'You do not have permission to do this',
         });
       }
 
@@ -480,77 +765,36 @@ router.put(
   },
 );
 
-// @route DELETE api/folder/:folderId
-// @desc Delete folder by folderId
+// @route POST api/folder/mutiple-restore
+// @desc Restore multiple folders by folder list
 // @access Private
-router.delete('/:folderId', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const folderId = req.params.folderId;
-  const folderDeleteArray = [];
+router.post(
+  '/mutiple-restore',
+  authorization.authorizeUser,
+  async (req, res) => {
+    const userId = req.data.id;
+    const folders = req.body.folders;
+    const folderIdsToRestore = folders.map((folder) => folder._id);
 
-  try {
-    // Find the folder to delete
-    const folderExists = await Folder.findOne({
-      _id: folderId,
-      author: userId,
-    });
-
-    if (!folderExists) {
-      return res.status(404).json({
-        success: false,
-        message: 'Folder does not exists or you are not permission to do this',
-      });
-    }
-
-    if (folderExists.parent_folder) {
-      await Folder.findOneAndUpdate(
-        { _id: folderExists.parent_folder },
-        {
-          $pull: { sub_folder: folderExists._id },
-          $set: { modifiedAt: Date.now() },
-          $inc: { size: -folderExists.size },
-        },
+    try {
+      await Folder.updateMany(
+        { _id: { $in: folderIdsToRestore }, author: userId },
+        { isDelete: false, modifiedAt: Date.now() },
+        { new: true },
       );
+
+      res.json({
+        success: true,
+        message: 'Folders has been restored successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
     }
-
-    // Populate the folderDeleteArray
-    folderDeleteArray.push(folderExists._id);
-    await findAllSubFolder(folderId, folderDeleteArray);
-
-    // Delete all folders using Promise.all
-    const promises = [
-      Folder.deleteMany({ _id: { $in: folderDeleteArray } }),
-      File.deleteMany({ parent_folder: { $in: folderDeleteArray } }),
-    ];
-
-    await Promise.all(promises);
-
-    return res.json({
-      success: true,
-      message: 'Folder has been deleted successfully',
-    });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
-const findAllSubFolder = async (rootFolderId, folderDeleteArray) => {
-  try {
-    const subFolders = await Folder.find({ parent_folder: rootFolderId });
-
-    if (subFolders.length > 0) {
-      for (const folder of subFolders) {
-        folderDeleteArray.push(folder._id);
-        await findAllSubFolder(folder._id, folderDeleteArray);
-      }
-    }
-  } catch (error) {
-    console.error(error);
-  }
-};
+  },
+);
 
 // @route GET api/folder/:folderId/detail
 // @desc Get folder by folderId
@@ -699,5 +943,28 @@ const getFolderSize = async (folderId) => {
     throw error;
   }
 };
+
+// @route GET api/folder/shared
+// @desc Get folder that was shared by email
+// @access Private
+router.get('/shared', authorization.authorizeUser, async (req, res) => {
+  const email = req.data.email;
+
+  try {
+    const folders = await Folder.find({
+      sharedTo: { $elemMatch: { $eq: email } },
+    })
+      .populate('parent_folder')
+      .populate('sub_folder')
+      .populate('files');
+
+    res.json({ success: true, data: folders });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
 
 module.exports = router;

@@ -1,6 +1,6 @@
 ### Major
 ###
-POST http://localhost:8000/api/major
+POST http://localhost:9000/api/major
 Content-Type: application/json
 
 {
@@ -9,7 +9,7 @@ Content-Type: application/json
 
 ### Specialization
 ###
-POST http://localhost:8000/api/specialization
+POST http://localhost:9000/api/specialization
 Content-Type: application/json
 
 {
@@ -17,9 +17,19 @@ Content-Type: application/json
     "major": "645894942c714f9e1ad44ee3"
 }
 
+### Class
+###
+POST http://localhost:9000/api/class
+Content-Type: application/json
+
+{
+    "name": "D19PM01",
+    "specialization": "6458954e34a09c5f3e8477e4"
+}
+
 ### Authentication
 ###
-POST http://localhost:8000/api/authentication/lecturers/register
+POST http://localhost:9000/api/authentication/lecturers/register
 Content-Type: application/json
 
 {
@@ -35,7 +45,22 @@ Content-Type: application/json
 }
 
 ###
-POST http://localhost:8000/api/authentication/login
+POST http://localhost:9000/api/authentication/pupil/register
+Content-Type: application/json
+
+{
+    "username": "abc",
+    "password": "abc",
+    "name": "Nguyễn Văn A",
+    "email": "abc@gmail.com",
+    "specialization": [
+        "6458954e34a09c5f3e8477e4"
+    ],
+    "class_": "64be3ff263e6c800035ab359"
+}
+
+###
+POST http://localhost:9000/api/authentication/login
 Content-Type: application/json
 
 {
@@ -45,7 +70,7 @@ Content-Type: application/json
 
 ### Folder
 ###
-POST http://localhost:8000/api/folder
+POST http://localhost:9000/api/folder
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzNTkyMywiZXhwIjoxNjgzNjM2ODIzfQ.BmJ5Eb4vkKMnNvso_xX1vvnFcCRmjdgBG8jTr4Nj5qs
 
@@ -54,7 +79,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2Z
 }
 
 ###
-PUT http://localhost:8000/api/folder/645a0f22b772784f497886ba
+PUT http://localhost:9000/api/folder/645a0f22b772784f497886ba
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzODk4NSwiZXhwIjoxNjgzNjM5ODg1fQ.M-jT5CD07hFr-Mz9znXqdZNQjcj9poBND7ebT6R3w7A
 
@@ -64,16 +89,16 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2Z
 }
 
 ###
-GET http://localhost:8000/api/folder/645a0435b2d7dff8f0db2299
+GET http://localhost:9000/api/folder/645a0435b2d7dff8f0db2299
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYyNTMzMywiZXhwIjoxNjgzNjI2MjMzfQ.vjgW7XEy4ohzRuO8SHbSJ2ZefVfdxazJQPWxviwjTM8
 
 ###
-GET http://localhost:8000/api/folder/user/64589e86d049783473729a5c
+GET http://localhost:9000/api/folder/user/64589e86d049783473729a5c
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYyNTMzMywiZXhwIjoxNjgzNjI2MjMzfQ.vjgW7XEy4ohzRuO8SHbSJ2ZefVfdxazJQPWxviwjTM8
 
 ### File
 ###
-POST http://localhost:8000/api/file
+POST http://localhost:9000/api/file
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY0NTg5ZTg2ZDA0OTc4MzQ3MzcyOWE1YiIsImxlY3R1cmVycyI6dHJ1ZSwibmFtZSI6Ik5ndXnhu4VuIEzDvSBQaGkiLCJlbWFpbCI6Im5ndXllbmx5cGhpMjQ3QGdtYWlsLmNvbSIsImlhdCI6MTY4MzYzMjc0NCwiZXhwIjoxNjgzNjMzNjQ0fQ.ObIQly59Dfl9S-wnnJo7dznEOo0wme608ANt-D7JlkA
 

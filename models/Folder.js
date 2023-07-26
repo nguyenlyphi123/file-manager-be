@@ -27,6 +27,19 @@ const FolderSchema = new Schema({
       ref: 'file',
     },
   ],
+  sharedTo: [
+    {
+      type: String,
+      default: null,
+    },
+  ],
+  permission: [
+    {
+      type: String,
+      enum: ['READ', 'WRITE', 'DOWNLOAD', 'SHARE', 'EDIT'],
+      default: ['READ', 'DOWNLOAD', 'SHARE'],
+    },
+  ],
   size: {
     type: Number,
     default: 0,

@@ -46,10 +46,19 @@ const FileSchema = new Schema({
     type: Boolean,
     default: false,
   },
-  link: {
-    type: String,
-    default: null,
-  },
+  sharedTo: [
+    {
+      type: String,
+      default: null,
+    },
+  ],
+  permission: [
+    {
+      type: String,
+      enum: ['DOWNLOAD', 'SHARE', 'EDIT'],
+      default: ['DOWNLOAD', 'SHARE'],
+    },
+  ],
   createAt: {
     type: Date,
     default: Date.now(),
