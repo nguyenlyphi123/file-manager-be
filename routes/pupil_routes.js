@@ -9,8 +9,28 @@ const { authorizeUser } = require('../middlewares/authorization');
 // @access Private
 router.get('/class/:classId', authorizeUser, async (req, res) => {
   const classId = req.params.classId;
+  const userId = req.data.id;
 
   try {
+    if (classId === 'undefined') {
+      const pupil = await Pupil.findOne({ account_id: userId }).populate(
+        'class',
+      );
+
+      console.log(pupil);
+
+      if (!pupil) {
+        return res.status(400).json({
+          success: false,
+          message: 'Pupil not found',
+        });
+      }
+
+      const pupils = await Pupil.find({ class: pupil.class }).populate('class');
+
+      return res.json({ success: true, data: pupils });
+    }
+
     const pupils = await Pupil.find({ class: classId }).populate('class');
 
     if (!pupils)
