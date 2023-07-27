@@ -423,7 +423,7 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
         .status(404)
         .json({ success: false, message: 'Folder not found' });
 
-    if (!folder.author === userId) {
+    if (!folder.author.toString() === userId) {
       if (
         !folder.sharedTo.includes(userId) &&
         !folder.permission.includes(process.env.PERMISSION_SHARE)
@@ -471,6 +471,96 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
   }
 });
 
+// @route PUT api/folder/:folderId/restore
+// @desc Restore folder by folderId
+// @access Private
+router.put(
+  '/:folderId/restore',
+  authorization.authorizeUser,
+  async (req, res) => {
+    const userId = req.data.id;
+    const folderId = req.params.folderId;
+    const folderRestoreArray = [];
+
+    try {
+      // Find the folder to restore
+      const folderExists = await Folder.findOne({
+        _id: folderId,
+        author: userId,
+        isDelete: true,
+      });
+
+      if (!folderExists) {
+        return res.status(404).json({
+          success: false,
+          message:
+            'Folder does not exists or you are not permission to do this',
+        });
+      }
+
+      // Populate the folderRestoreArray
+      folderRestoreArray.push(folderExists._id);
+      await findAllSubFolder(folderId, folderRestoreArray);
+
+      // Restore all folders using Promise.all
+      const promises = folderRestoreArray.map(async (id) => {
+        try {
+          await Folder.findByIdAndUpdate(
+            id,
+            { isDelete: false, modifiedAt: Date.now() },
+            { new: true },
+          );
+        } catch (error) {
+          throw error;
+        }
+      });
+
+      await Promise.all(promises);
+
+      return res.json({
+        success: true,
+        message: 'Folder has been restored successfully',
+      });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
+  },
+);
+
+// @route POST api/folder/mutiple-restore
+// @desc Restore multiple folders by folder list
+// @access Private
+router.post(
+  '/multiple-restore',
+  authorization.authorizeUser,
+  async (req, res) => {
+    const userId = req.data.id;
+    const folders = req.body.folders;
+    const folderIdsToRestore = folders.map((folder) => folder._id);
+
+    try {
+      await Folder.updateMany(
+        { _id: { $in: folderIdsToRestore }, author: userId },
+        { isDelete: false, modifiedAt: Date.now() },
+        { new: true },
+      );
+
+      res.json({
+        success: true,
+        message: 'Folders has been restored successfully',
+      });
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
+  },
+);
+
 // @route PUT api/folder/:folderId
 // @desc Update folder by folderId
 // @access Private
@@ -486,18 +576,22 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
       _id: folderId,
     });
 
-    console.log(folderBeforeChange);
-
-    if (
-      folderBeforeChange.author !== userId &&
-      (!folderBeforeChange.sharedTo.includes(email) ||
-        !folderBeforeChange.permission.includes(process.env.PERMISSION_EDIT))
-    ) {
-      console.log('cc');
-      return res.status(400).json({
-        success: false,
-        message: 'You do not have permission to do this',
-      });
+    if (folderBeforeChange.author.toString() !== userId) {
+      if (
+        !folderBeforeChange.sharedTo.includes(email) ||
+        !folderBeforeChange.permission.includes(process.env.PERMISSION_EDIT)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'You do not have permission to do this',
+        });
+      } else {
+        await Folder.updateOne({ _id: folderId }, { name });
+        return res.json({
+          success: true,
+          message: 'Folder has been updated successfully',
+        });
+      }
     }
 
     const updateData = {
@@ -553,11 +647,17 @@ router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
   const folderId = req.params.folderId;
 
   try {
-    await Folder.findOneAndUpdate(
+    const folder = await Folder.findOneAndUpdate(
       { _id: folderId, author: userId },
       { isStar: true },
       { new: true },
     );
+
+    if (!folder)
+      return res.status(404).json({
+        success: false,
+        message: 'You do not have permission to do this',
+      });
 
     return res.json({
       success: true,
@@ -653,7 +753,7 @@ router.put(
       });
 
       if (
-        folderExists.author !== userId &&
+        folderExists.author.toString() !== userId &&
         folderExists.sharedTo.includes(email)
       ) {
         await Folder.updateOne(
@@ -699,96 +799,6 @@ router.put(
       });
     } catch (error) {
       console.error(error);
-      return res
-        .status(500)
-        .json({ success: false, message: 'Internal Server Error' });
-    }
-  },
-);
-
-// @route PUT api/folder/:folderId/restore
-// @desc Restore folder by folderId
-// @access Private
-router.put(
-  '/:folderId/restore',
-  authorization.authorizeUser,
-  async (req, res) => {
-    const userId = req.data.id;
-    const folderId = req.params.folderId;
-    const folderRestoreArray = [];
-
-    try {
-      // Find the folder to restore
-      const folderExists = await Folder.findOne({
-        _id: folderId,
-        author: userId,
-        isDelete: true,
-      });
-
-      if (!folderExists) {
-        return res.status(404).json({
-          success: false,
-          message:
-            'Folder does not exists or you are not permission to do this',
-        });
-      }
-
-      // Populate the folderRestoreArray
-      folderRestoreArray.push(folderExists._id);
-      await findAllSubFolder(folderId, folderRestoreArray);
-
-      // Restore all folders using Promise.all
-      const promises = folderRestoreArray.map(async (id) => {
-        try {
-          await Folder.findByIdAndUpdate(
-            id,
-            { isDelete: false, modifiedAt: Date.now() },
-            { new: true },
-          );
-        } catch (error) {
-          throw error;
-        }
-      });
-
-      await Promise.all(promises);
-
-      return res.json({
-        success: true,
-        message: 'Folder has been restored successfully',
-      });
-    } catch (error) {
-      console.error(error);
-      return res
-        .status(500)
-        .json({ success: false, message: 'Internal Server Error' });
-    }
-  },
-);
-
-// @route POST api/folder/mutiple-restore
-// @desc Restore multiple folders by folder list
-// @access Private
-router.post(
-  '/mutiple-restore',
-  authorization.authorizeUser,
-  async (req, res) => {
-    const userId = req.data.id;
-    const folders = req.body.folders;
-    const folderIdsToRestore = folders.map((folder) => folder._id);
-
-    try {
-      await Folder.updateMany(
-        { _id: { $in: folderIdsToRestore }, author: userId },
-        { isDelete: false, modifiedAt: Date.now() },
-        { new: true },
-      );
-
-      res.json({
-        success: true,
-        message: 'Folders has been restored successfully',
-      });
-    } catch (error) {
-      console.log(error);
       return res
         .status(500)
         .json({ success: false, message: 'Internal Server Error' });

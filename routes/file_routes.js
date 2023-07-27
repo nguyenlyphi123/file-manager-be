@@ -292,7 +292,7 @@ router.post('/share', authorizeUser, async (req, res) => {
         .status(404)
         .json({ success: false, message: 'File not found' });
 
-    if (!file.author === userId) {
+    if (!file.author.toString() === userId) {
       if (
         !file.sharedTo.includes(userId) &&
         !file.permission.includes(process.env.PERMISSION_SHARE)
@@ -493,12 +493,21 @@ router.put('/trash', authorizeUser, async (req, res) => {
   try {
     const file = await File.findOne({ _id: fileId });
 
-    if (file.author !== userId && file.sharedTo.includes(email)) {
-      await File.updateOne({ _id: fileId }, { $pull: { sharedTo: email } });
-      return res.json({
-        success: true,
-        message: 'File has been removed from your drive',
-      });
+    if (file.author.toString() !== userId) {
+      if (file.sharedTo.includes(email)) {
+        await File.updateOne({ _id: fileId }, { $pull: { sharedTo: email } });
+        return res.json({
+          success: true,
+          message: 'File has been removed from your drive',
+        });
+      } else {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: 'You do not have permission to do this',
+          });
+      }
     }
 
     await File.updateOne({ _id: fileId, author: userId }, { isDelete: true });
@@ -534,10 +543,10 @@ router.put('/restore', authorizeUser, async (req, res) => {
   }
 });
 
-// @route PUT api/file/restore-multiple
+// @route PUT api/file/multiple-restore
 // @desc Restore multiple files
 // @access Private
-router.put('/restore-multiple', authorizeUser, async (req, res) => {
+router.put('/multiple-restore', authorizeUser, async (req, res) => {
   const userId = req.data.id;
   const { files } = req.body;
 
