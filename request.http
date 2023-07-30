@@ -23,8 +23,30 @@ POST http://localhost:9000/api/class
 Content-Type: application/json
 
 {
-    "name": "D19PM01",
-    "specialization": "6458954e34a09c5f3e8477e4"
+    "name": "D19AT03",
+    "specialization": "6458957e34a09c5f3e8477ea"
+}
+
+### Chat
+###
+POST http://localhost:9000/api/chat
+Content-Type: application/json
+
+{
+    "member": [
+        "64589e86d049783473729a5b",
+        "64bf55e4e31a0e6f319a84dc"
+    ]
+}
+
+### Message
+###
+POST http://localhost:9000/api/message
+Content-Type: application/json
+
+{
+    "content": "Hello, I'm Nguyễn Lý Phi",
+    "chat": "64c4fee8378f650f34efea30"
 }
 
 ### Authentication
@@ -45,14 +67,26 @@ Content-Type: application/json
 }
 
 ###
+POST http://localhost:9000/api/authentication/manager/register
+Content-Type: application/json
+
+{
+    "username": "tranvannguyen",
+    "password": "tranvannguyen",
+    "name": "Trần Văn Nguyên",
+    "email": "tranvannguyen@gmail.com",
+    "major": "645894942c714f9e1ad44ee3"
+}
+
+###
 POST http://localhost:9000/api/authentication/pupil/register
 Content-Type: application/json
 
 {
-    "username": "abc",
-    "password": "abc",
-    "name": "Nguyễn Văn A",
-    "email": "abc@gmail.com",
+    "username": "ghi",
+    "password": "ghi",
+    "name": "Nguyễn Văn C",
+    "email": "cvannguyen@gmail.com",
     "specialization": [
         "6458954e34a09c5f3e8477e4"
     ],

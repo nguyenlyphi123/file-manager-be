@@ -6,6 +6,7 @@ const Specialization = require('../models/Specialization');
 const Lecturers = require('../models/Lecturers');
 const Pupil = require('../models/Pupil');
 const Class = require('../models/Class');
+const Manager = require('../models/Manager');
 
 // @route POST api/specialization
 // @desc Create new specialization for lecturers
@@ -55,34 +56,27 @@ router.get('/', authorizeUser, async (req, res) => {
   try {
     const userData = await getUserData(userId, permission);
 
-    if (!userData)
+    if (!userData) {
       return res
         .status(400)
         .json({ success: false, message: 'You are not authorized' });
+    }
 
-    const specialization = await Specialization.find({
-      _id: { $in: userData.specialization },
-    });
+    let specialization;
 
-    const specializationIds = specialization.map((item) => item._id);
+    if (permission === process.env.PERMISSION_MANAGER) {
+      specialization = await getSpecializationByManager(userData.major);
+    } else {
+      specialization = await getSpecializationByLecturers(
+        userData.specialization,
+      );
+    }
 
-    const classPromises = specializationIds.map(async (id) => {
-      const data = await Class.find({ specialization: id });
-      const memberCount = data.length;
-      return { id, member: memberCount };
-    });
-
-    const specializedData = await Promise.all(classPromises);
-
-    const updatedSpecializations = specialization.map((item) => {
-      const matchedData = specializedData.find((data) => data.id === item._id);
-      const memberCount = matchedData ? matchedData.member : 0;
-      return { ...item.toObject(), member: memberCount };
-    });
+    const updatedSpecializations = await getSpecializationData(specialization);
 
     res.json({ success: true, data: updatedSpecializations });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return res
       .status(500)
       .json({ success: false, message: 'Internal Server Error' });
@@ -91,16 +85,48 @@ router.get('/', authorizeUser, async (req, res) => {
 
 const getUserData = async (userId, permission) => {
   switch (permission) {
+    case process.env.PERMISSION_MANAGER:
+      return await Manager.findOne({ account_id: userId });
+
     case process.env.PERMISSION_LECTURERS:
-      const lecturersData = await Lecturers.findOne({ account_id: userId });
-      return lecturersData;
+      return await Lecturers.findOne({ account_id: userId });
 
     case process.env.PERMISSION_PUPIL:
-      const pupilData = await Pupil.findOne({ account_id: userId });
-      return pupilData;
+      return await Pupil.findOne({ account_id: userId });
+
     default:
-      break;
+      return null;
   }
+};
+
+const getSpecializationByManager = async (major) => {
+  return await Specialization.find({ major });
+};
+
+const getSpecializationByLecturers = async (specializationIds) => {
+  return await Specialization.find({ _id: { $in: specializationIds } });
+};
+
+const getSpecializationData = async (specializations) => {
+  const specializationIds = specializations.map((item) => item._id);
+
+  const classPromises = specializationIds.map(async (id) => {
+    const data = await Class.find({ specialization: id });
+    const memberCount = data.length;
+    return { id, member: memberCount };
+  });
+
+  const specializedData = await Promise.all(classPromises);
+
+  const updatedSpecializations = specializations.map((item) => {
+    const matchedData = specializedData.find((data) =>
+      data.id.equals(item._id),
+    );
+    const memberCount = matchedData ? matchedData.member : 0;
+    return { ...item.toObject(), member: memberCount };
+  });
+
+  return updatedSpecializations;
 };
 
 module.exports = router;

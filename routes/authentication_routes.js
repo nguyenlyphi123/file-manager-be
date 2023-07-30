@@ -3,11 +3,13 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const argon2 = require('argon2');
 
+const { authorizeUser } = require('../middlewares/authorization');
+
 const Account = require('../models/Account');
 const Lecturers = require('../models/Lecturers');
 const Pupil = require('../models/Pupil');
-const { authorizeUser } = require('../middlewares/authorization');
 const Class = require('../models/Class');
+const Manager = require('../models/Manager');
 
 let refreshTokens = [];
 
@@ -199,6 +201,18 @@ router.post('/login', async (req, res) => {
     };
 
     switch (accountExists.permission) {
+      case process.env.PERMISSION_MANAGER:
+        const managerInfo = await Manager.findOne({
+          account_id: accountExists._id,
+        });
+        accountData = {
+          id: accountExists._id,
+          permission: accountExists.permission,
+          name: managerInfo.name,
+          email: managerInfo.email,
+        };
+        break;
+
       case process.env.PERMISSION_LECTURERS:
         const lecturersInfo = await Lecturers.findOne({
           account_id: accountExists._id,
@@ -386,6 +400,59 @@ router.post('/pupil/register', async (req, res) => {
         { $push: { pupil: account._id } },
         { new: true },
       );
+
+      res.json({
+        success: true,
+        message: 'Account has been created successfully',
+      });
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// Manager
+// @route POST api/authorization/manager/register
+// @desc Create new account for manager
+// @access Public
+router.post('/manager/register', async (req, res) => {
+  const { username, password, name, email, major } = req.body;
+
+  if (!username || !password || !name || !email || !major) {
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+  }
+
+  try {
+    const usernameExists = await Account.findOne({ username });
+
+    if (usernameExists)
+      return res
+        .status(400)
+        .json({ success: false, message: 'Username already exists' });
+
+    let hashedPassword = await argon2.hash(password);
+
+    let account = new Account({
+      username,
+      password: hashedPassword,
+      permission: process.env.PERMISSION_MANAGER,
+    });
+
+    await account.save().then(async (account) => {
+      let accountInfo = new Manager({
+        account_id: account._id,
+        name,
+        email,
+        major,
+      });
+
+      await accountInfo.save();
 
       res.json({
         success: true,
