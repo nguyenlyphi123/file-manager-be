@@ -22,6 +22,10 @@ const AccountSchema = new Schema({
     type: Date,
     default: Date.now(),
   },
+  lastSigned: {
+    type: Date,
+    default: Date.now(),
+  },
 });
 
 module.exports = mongoose.model('account', AccountSchema);

@@ -193,6 +193,14 @@ router.post('/login', async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Username or password is incorrect' });
 
+    await Account.findByIdAndUpdate(
+      accountExists._id,
+      {
+        $set: { lastSigned: Date.now() },
+      },
+      { new: true },
+    );
+
     let accountData = {
       id: null,
       permission: null,

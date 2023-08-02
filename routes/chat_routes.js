@@ -11,7 +11,7 @@ const Pupil = require('../models/Pupil');
 // @desc Create a new chat
 // @access Private
 router.post('/', async (req, res) => {
-  const { name, isGroupChat, member } = req.body;
+  const { name, member } = req.body;
 
   if (!member)
     return res.status(400).json({
@@ -22,7 +22,38 @@ router.post('/', async (req, res) => {
   try {
     const chat = new Chat({
       name: name ? name : null,
-      isGroupChat,
+      isGroupChat: false,
+      member,
+      lastMessage: null,
+    });
+
+    await chat.save();
+
+    return res.json({ success: true, data: chat });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route POST api/chat/group
+// @desc Create a new group chat
+// @access Private
+router.post('/group', authorizeUser, async (req, res) => {
+  const { name, member } = req.body;
+
+  if (!member || !name)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
+  try {
+    const chat = new Chat({
+      name,
+      isGroupChat: true,
       member,
       lastMessage: null,
     });
@@ -82,6 +113,7 @@ const getMemberInfo = async (chats) => {
                 permission: member.permission,
                 name: managerInfo.name,
                 email: managerInfo.email,
+                lastSigned: member.lastSigned,
               };
 
             case process.env.PERMISSION_LECTURERS:
@@ -93,6 +125,7 @@ const getMemberInfo = async (chats) => {
                 permission: member.permission,
                 name: lecturersInfo.name,
                 email: lecturersInfo.email,
+                lastSigned: member.lastSigned,
               };
 
             case process.env.PERMISSION_PUPIL:
@@ -104,6 +137,7 @@ const getMemberInfo = async (chats) => {
                 permission: member.permission,
                 name: pupilInfo.name,
                 email: pupilInfo.email,
+                lastSigned: member.lastSigned,
               };
 
             default:

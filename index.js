@@ -16,6 +16,7 @@ const pupilRouter = require('./routes/pupil_routes');
 const lecturersRouter = require('./routes/lecturers_routes');
 const chatRouter = require('./routes/chat_routes');
 const messageRouter = require('./routes/message_routes');
+const accountRouter = require('./routes/account_routes');
 
 const connectDB = async () => {
   try {
@@ -54,6 +55,7 @@ app.use('/api/pupil', pupilRouter);
 app.use('/api/lecturers', lecturersRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/message', messageRouter);
+app.use('/api/account', accountRouter);
 
 const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),
@@ -79,19 +81,24 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', (room) => {
     socket.join(room);
-    console.log('User joined room', room);
   });
 
   socket.on('send-message', (message) => {
     const { receiver } = message;
-
-    console.log(message);
 
     receiver.forEach((receive) => {
       if (receive._id === sender) return;
 
       socket.to(receive._id).emit('receive-message', message);
     });
+  });
+
+  socket.on('typing', (room) => {
+    socket.to(room).emit('typing');
+  });
+
+  socket.on('stop-typing', (room) => {
+    socket.to(room).emit('stop-typing');
   });
 
   socket.on('disconnect', () => {

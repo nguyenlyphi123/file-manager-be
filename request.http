@@ -45,7 +45,7 @@ POST http://localhost:9000/api/message
 Content-Type: application/json
 
 {
-    "content": "Hello, I'm Nguyễn Lý Phi",
+    "content": "Hello, I'm Trần Thị Ngọc Ánh",
     "chat": "64c4fee8378f650f34efea30"
 }
 
