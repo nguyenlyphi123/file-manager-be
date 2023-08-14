@@ -41,7 +41,12 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(
+  cors({
+    origin: 'https://file-manager-fe.vercel.app',
+    credentials: true,
+  }),
+);
 app.use(cookieParser());
 
 app.use('/api/major', majorRouter);
@@ -63,7 +68,7 @@ const server = app.listen(process.env.PORT, () =>
 
 const io = require('socket.io')(server, {
   cors: {
-    origin: '*',
+    origin: 'https://file-manager-fe.vercel.app',
     credentials: true,
   },
 });
