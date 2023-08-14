@@ -6,6 +6,10 @@ const ChatSchema = new Schema({
     type: String,
     dafault: null,
   },
+  author: {
+    type: Schema.Types.ObjectId,
+    ref: 'account',
+  },
   isGroupChat: {
     type: Boolean,
     default: false,

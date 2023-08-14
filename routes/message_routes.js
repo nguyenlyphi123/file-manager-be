@@ -87,11 +87,19 @@ router.get('/:chatId', authorizeUser, async (req, res) => {
   const chatId = req.params.chatId;
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const offset = (page - 1) * limit;
+
   try {
-    const messages = await Message.find({ chat: chatId }).populate({
-      path: 'sender',
-      select: '-password',
-    });
+    const messages = await Message.find({ chat: chatId })
+      .sort({ _id: -1 })
+      .skip(offset)
+      .limit(limit)
+      .populate({
+        path: 'sender',
+        select: '-password',
+      });
 
     if (!messages || messages.length === 0) {
       return res.json({ success: true, data: [] });
