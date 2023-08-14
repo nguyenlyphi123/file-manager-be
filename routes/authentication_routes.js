@@ -54,12 +54,12 @@ router.post('/refresh-token', (req, res) => {
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     refreshTokens.push(refreshToken);
@@ -143,12 +143,12 @@ router.get('/', authorizeUser, async (req, res) => {
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     res.json({
@@ -274,12 +274,12 @@ router.post('/login', async (req, res) => {
 
     res.cookie('accessToken', accessToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
     });
 
     res.json({
