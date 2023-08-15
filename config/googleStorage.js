@@ -1,4 +1,5 @@
 const { Storage } = require('@google-cloud/storage');
+const crypto = require('crypto');
 
 const projectId = process.env.GCLOUD_PROJECT_ID;
 const privateKey = process.env.GCLOUD_PRIVATE_KEY.split(String.raw`\n`).join(
@@ -9,13 +10,18 @@ const clientEmail = process.env.GCLOUD_CLIENT_EMAIL;
 const clientId = process.env.GCLOUD_CLIENT_ID;
 const clientCertUrl = process.env.GCLOUD_CLIENT_CERT_URL;
 
+const cipher = 'aes-256-cbc';
+const key = Buffer.from('your-secret-key', 'utf-8');
+
+const decryptedPrivateKey = crypto.decrypt(cipher, privateKey, key);
+
 const storage = new Storage({
   projectId: projectId,
   credentials: {
     type: 'service_account',
     project_id: projectId,
     private_key_id: privateKeyId,
-    private_key: privateKey,
+    private_key: decryptedPrivateKey,
     client_email: clientEmail,
     client_id: clientId,
     auth_uri: 'https://accounts.google.com/o/oauth2/auth',
