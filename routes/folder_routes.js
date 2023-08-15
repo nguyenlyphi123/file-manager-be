@@ -349,7 +349,7 @@ const gcDeleteFile = async (fileName) => {
 // @desc Delete multiple folders by folder list
 // @access Private
 router.post(
-  '/mutiple-delete',
+  '/multiple-delete',
   authorization.authorizeUser,
   async (req, res) => {
     const userId = req.data.id;

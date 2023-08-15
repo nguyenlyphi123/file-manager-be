@@ -2,16 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { authorizeUser } = require('../middlewares/authorization');
 
-const { Storage } = require('@google-cloud/storage');
-const path = require('path');
+const storage = require('../config/googleStorage');
 
 const File = require('../models/File');
 const Folder = require('../models/Folder');
-
-const storage = new Storage({
-  projectId: process.env.GCLOUD_PROJECT_ID,
-  keyFilename: path.join(__dirname, '../serviceAccountKey.json'),
-});
 
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
@@ -501,12 +495,10 @@ router.put('/trash', authorizeUser, async (req, res) => {
           message: 'File has been removed from your drive',
         });
       } else {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: 'You do not have permission to do this',
-          });
+        return res.status(400).json({
+          success: false,
+          message: 'You do not have permission to do this',
+        });
       }
     }
 

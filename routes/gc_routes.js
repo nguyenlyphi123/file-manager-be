@@ -1,20 +1,15 @@
 const express = require('express');
 const multer = require('multer');
-const { Storage } = require('@google-cloud/storage');
-const path = require('path');
 const { authorizeUser } = require('../middlewares/authorization');
 const iconv = require('iconv-lite');
 const JSZip = require('jszip');
+
+const storage = require('../config/googleStorage');
 
 const Folder = require('../models/Folder');
 const File = require('../models/File');
 
 const router = express.Router();
-
-const storage = new Storage({
-  projectId: process.env.GCLOUD_PROJECT_ID,
-  keyFilename: path.join(__dirname, '../serviceAccountKey.json'),
-});
 
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
@@ -123,7 +118,7 @@ router.post('/download', authorizeUser, async (req, res) => {
     const fileExists = await File.findOne({ name: fileData.name });
 
     if (
-      fileExists.author !== userId &&
+      fileExists.author.toString() !== userId &&
       (!fileExists.sharedTo.includes(email) ||
         !fileExists.permission.includes(process.env.PERMISSION_DOWNLOAD))
     ) {
@@ -167,7 +162,7 @@ router.post('/folder/download', authorizeUser, async (req, res) => {
     const folder = await Folder.findById(folderId);
 
     if (
-      folder.author !== userId &&
+      folder.author.toString() !== userId &&
       (!folder.sharedTo.includes(email) ||
         !folder.permission.includes(process.env.PERMISSION_DOWNLOAD))
     ) {
