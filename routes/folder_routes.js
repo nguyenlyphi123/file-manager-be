@@ -4,14 +4,7 @@ const router = express.Router();
 const Folder = require('../models/Folder');
 const File = require('../models/File');
 const authorization = require('../middlewares/authorization');
-
-const Permission = [
-  process.env.PERMISSION_READ,
-  process.env.PERMISSION_WRITE,
-  process.env.PERMISSION_READ_WRITE,
-  process.env.PERMISSION_DOWNLOAD,
-  process.env.PERMISSION_SHARE,
-];
+const { IncFolderSize } = require('../helpers/FolderHelper');
 
 // @route POST api/folder
 // @desc Create new folder
@@ -36,16 +29,17 @@ router.post('/', authorization.authorizeUser, async (req, res) => {
     const createFolder = new Folder({
       name,
       author,
-      parent_folder,
+      parent_folder: parent_folder._id ? parent_folder._id : null,
+      owner: parent_folder.owner ? parent_folder.owner : author,
       sub_folder,
       files,
     });
 
     await createFolder.save();
 
-    if (parent_folder) {
+    if (parent_folder._id) {
       await Folder.updateOne(
-        { _id: parent_folder },
+        { _id: parent_folder._id },
         {
           $push: { sub_folder: createFolder._id },
           $inc: { size: createFolder.size ? createFolder.size : 0 },
@@ -76,7 +70,7 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
 
   try {
     if (
-      data.author !== userId &&
+      data.author._id !== userId &&
       (!data.sharedTo.includes(email) ||
         !data.permission.includes(process.env.PERMISSION_EDIT))
     )
@@ -124,17 +118,19 @@ router.post('/copy', authorization.authorizeUser, async (req, res) => {
         .json({ success: false, message: 'Destination folder not found' });
 
     copyFolder.parent_folder = newParentFolder._id;
+    copyFolder.owner = newParentFolder.owner;
 
     const copiedFolder = await copyFolder.save();
     await Folder.updateOne(
       { _id: folderId, author: userId },
       {
         $push: { sub_folder: copiedFolder._id },
-        $inc: { size: copiedFolder.size ? copiedFolder.size : 0 },
         $set: { modifiedAt: Date.now() },
       },
       { new: true },
     );
+
+    await IncFolderSize(folderId, copiedFolder.size);
 
     res.json({
       status: true,
@@ -227,7 +223,7 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
         {
           updateOne: {
             filter: { _id: data._id, author: userId },
-            update: { parent_folder: folderId },
+            update: { parent_folder: folderId, owner: newParentFolder.owner },
           },
         },
       );
@@ -255,7 +251,7 @@ router.post('/move', authorization.authorizeUser, async (req, res) => {
 // @access Private
 router.post('/delete', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
-  const folderId = req.data.folderId;
+  const folderId = req.body.folderId;
   const folderDeleteArray = [];
 
   try {
@@ -816,18 +812,26 @@ router.get(
     const folderId = req.params.folderId;
 
     try {
-      const folders = await Folder.find({
+      let folders = await Folder.find({
         parent_folder: folderId,
         isDelete: false,
       })
-        .populate('parent_folder')
-        .populate('sub_folder')
-        .populate('files');
-
-      if (!folders)
-        return res
-          .status(404)
-          .json({ success: false, message: 'Folder not found' });
+        .populate({
+          path: 'author',
+          select: 'permission info',
+          populate: {
+            path: 'info',
+            select: 'name email',
+          },
+        })
+        .populate({
+          path: 'owner',
+          select: 'permission info',
+          populate: {
+            path: 'info',
+            select: 'name email',
+          },
+        });
 
       await Folder.findOneAndUpdate(
         { _id: folderId },
@@ -858,12 +862,25 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
     })
       .populate('parent_folder')
       .populate('sub_folder')
-      .populate('files');
+      .populate('files')
+      .populate({
+        path: 'author',
+        select: 'info',
+        populate: {
+          path: 'info',
+          select: 'name email',
+        },
+      })
+      .populate({
+        path: 'owner',
+        select: 'info',
+        populate: {
+          path: 'info',
+          select: 'name email',
+        },
+      });
 
-    if (!folders)
-      return res
-        .status(404)
-        .json({ success: false, message: 'Folder not found' });
+    if (!folders) return res.json({ success: true, data: [] });
 
     res.json({ success: true, data: folders });
   } catch (error) {

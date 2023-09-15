@@ -17,8 +17,6 @@ router.get('/class/:classId', authorizeUser, async (req, res) => {
         'class',
       );
 
-      console.log(pupil);
-
       if (!pupil) {
         return res.status(400).json({
           success: false,

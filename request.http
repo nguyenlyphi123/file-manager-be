@@ -94,6 +94,18 @@ Content-Type: application/json
 }
 
 ###
+POST http://localhost:9000/api/authentication/register
+Content-Type: application/json
+
+{
+    "username": "quatroiten",
+    "password": "quatroiten",
+    "name": "Quá Trời Tên",
+    "email": "quatroiten@gmail.com",
+    "permission": "LECTURERS"
+}
+
+###
 POST http://localhost:9000/api/authentication/login
 Content-Type: application/json
 

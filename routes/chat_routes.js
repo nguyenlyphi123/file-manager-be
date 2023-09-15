@@ -3,9 +3,6 @@ const router = express.Router();
 
 const { authorizeUser } = require('../middlewares/authorization');
 const Chat = require('../models/Chat');
-const Manager = require('../models/Manager');
-const Lecturers = require('../models/Lecturers');
-const Pupil = require('../models/Pupil');
 const Message = require('../models/Message');
 
 // @route POST api/chat
@@ -235,7 +232,13 @@ router.get('/', authorizeUser, async (req, res) => {
     const chats = await Chat.find({
       member: { $elemMatch: { $eq: userId } },
     })
-      .populate('member')
+      .populate({
+        path: 'member',
+        select: '-password',
+        populate: {
+          path: 'info',
+        },
+      })
       .populate('lastMessage')
       .populate('author', '-password');
 
@@ -244,9 +247,7 @@ router.get('/', authorizeUser, async (req, res) => {
         .status(404)
         .json({ success: false, message: 'No chats found' });
 
-    const updatedChats = await getMemberInfo(chats, userId);
-
-    return res.json({ success: true, data: updatedChats });
+    return res.json({ success: true, data: chats });
   } catch (error) {
     console.log(error);
     return res
@@ -254,70 +255,5 @@ router.get('/', authorizeUser, async (req, res) => {
       .json({ success: false, message: 'Internal Server Error' });
   }
 });
-
-const getMemberInfo = async (chats) => {
-  const updatedChats = await Promise.all(
-    chats.map(async (chat) => {
-      const updatedMembers = await Promise.all(
-        chat.member.map(async (member) => {
-          switch (member.permission) {
-            case process.env.PERMISSION_MANAGER:
-              const managerInfo = await Manager.findOne({
-                account_id: member._id,
-              });
-              return {
-                _id: member._id,
-                permission: member.permission,
-                name: managerInfo.name,
-                email: managerInfo.email,
-                lastSigned: member.lastSigned,
-              };
-
-            case process.env.PERMISSION_LECTURERS:
-              const lecturersInfo = await Lecturers.findOne({
-                account_id: member._id,
-              });
-              return {
-                _id: member._id,
-                permission: member.permission,
-                name: lecturersInfo.name,
-                email: lecturersInfo.email,
-                lastSigned: member.lastSigned,
-              };
-
-            case process.env.PERMISSION_PUPIL:
-              const pupilInfo = await Pupil.findOne({
-                account_id: member._id,
-              });
-              return {
-                _id: member._id,
-                permission: member.permission,
-                name: pupilInfo.name,
-                email: pupilInfo.email,
-                lastSigned: member.lastSigned,
-              };
-
-            default:
-              return member;
-          }
-        }),
-      );
-
-      return {
-        _id: chat._id,
-        name: chat.name,
-        isGroupChat: chat.isGroupChat,
-        author: chat.author,
-        member: updatedMembers,
-        lastMessage: chat.lastMessage,
-        createAt: chat.createAt,
-        modifiedAt: chat.modifiedAt,
-        lastOpened: chat.lastOpened,
-      };
-    }),
-  );
-
-  return updatedChats;
-};
 
 module.exports = router;

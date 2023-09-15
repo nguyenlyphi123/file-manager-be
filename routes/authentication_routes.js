@@ -6,10 +6,7 @@ const argon2 = require('argon2');
 const { authorizeUser } = require('../middlewares/authorization');
 
 const Account = require('../models/Account');
-const Lecturers = require('../models/Lecturers');
-const Pupil = require('../models/Pupil');
-const Class = require('../models/Class');
-const Manager = require('../models/Manager');
+const Information = require('../models/Information');
 
 let refreshTokens = [];
 
@@ -75,50 +72,21 @@ router.post('/refresh-token', (req, res) => {
 // @access private
 router.get('/', authorizeUser, async (req, res) => {
   try {
-    const accountExists = await Account.findById(req.data.id).select(
-      '-password',
-    );
+    const accountExists = await Account.findById(req.data.id)
+      .select('-password')
+      .populate('info');
 
     if (!accountExists)
       return res
         .status(400)
         .json({ success: false, message: 'Account not found' });
 
-    let accountData = {
-      id: null,
-      permission: null,
-      name: null,
-      email: null,
+    const accountData = {
+      id: accountExists._id,
+      permission: accountExists.permission,
+      name: accountExists.info.name,
+      email: accountExists.info.email,
     };
-
-    switch (accountExists.permission) {
-      case process.env.PERMISSION_LECTURERS:
-        const lecturersInfo = await Lecturers.findOne({
-          account_id: accountExists._id,
-        });
-        accountData = {
-          id: accountExists._id,
-          permission: accountExists.permission,
-          name: lecturersInfo.name,
-          email: lecturersInfo.email,
-        };
-        break;
-
-      case process.env.PERMISSION_PUPIL:
-        const pupilInfo = await Pupil.findOne({
-          account_id: accountExists._id,
-        });
-        accountData = {
-          id: accountExists._id,
-          permission: accountExists.permission,
-          name: pupilInfo.name,
-          email: pupilInfo.email,
-        };
-        break;
-
-      default:
-        break;
-    }
 
     if (
       !accountData.id ||
@@ -183,7 +151,7 @@ router.post('/login', async (req, res) => {
     });
 
   try {
-    const accountExists = await Account.findOne({ username });
+    const accountExists = await Account.findOne({ username }).populate('info');
 
     if (!accountExists)
       return res
@@ -205,53 +173,12 @@ router.post('/login', async (req, res) => {
       { new: true },
     );
 
-    let accountData = {
-      id: null,
-      permission: null,
-      name: null,
-      email: null,
+    const accountData = {
+      id: accountExists._id,
+      permission: accountExists.permission,
+      name: accountExists.info.name,
+      email: accountExists.info.email,
     };
-
-    switch (accountExists.permission) {
-      case process.env.PERMISSION_MANAGER:
-        const managerInfo = await Manager.findOne({
-          account_id: accountExists._id,
-        });
-        accountData = {
-          id: accountExists._id,
-          permission: accountExists.permission,
-          name: managerInfo.name,
-          email: managerInfo.email,
-        };
-        break;
-
-      case process.env.PERMISSION_LECTURERS:
-        const lecturersInfo = await Lecturers.findOne({
-          account_id: accountExists._id,
-        });
-        accountData = {
-          id: accountExists._id,
-          permission: accountExists.permission,
-          name: lecturersInfo.name,
-          email: lecturersInfo.email,
-        };
-        break;
-
-      case process.env.PERMISSION_PUPIL:
-        const pupilInfo = await Pupil.findOne({
-          account_id: accountExists._id,
-        });
-        accountData = {
-          id: accountExists._id,
-          permission: accountExists.permission,
-          name: pupilInfo.name,
-          email: pupilInfo.email,
-        };
-        break;
-
-      default:
-        break;
-    }
 
     if (
       !accountData.id ||
@@ -317,14 +244,20 @@ router.post('/logout', (req, res) => {
   res.json({ success: true, message: 'Logout successfully' });
 });
 
-// Lecturers //
-// @route POST api/authorization/lecturers/register
-// @desc Create new account for lecturers
-// @access Public
-router.post('/lecturers/register', async (req, res) => {
-  const { username, password, name, email, major, specialization } = req.body;
+// NEW REGISTER //
+router.post('/register', async (req, res) => {
+  const {
+    username,
+    password,
+    name,
+    email,
+    major,
+    specialization,
+    _class,
+    permission,
+  } = req.body;
 
-  if (!username || !password || !name || !email || !major || !specialization)
+  if (!username || !password || !name || !email || !permission)
     return res.status(400).json({
       success: false,
       message: 'Oops! It looks like some data of your request is missing',
@@ -343,135 +276,29 @@ router.post('/lecturers/register', async (req, res) => {
     let account = new Account({
       username,
       password: hashedPassword,
-      permission: process.env.PERMISSION_LECTURERS,
+      permission: permission.toUpperCase(),
     });
 
-    await account.save().then(async (account) => {
-      let accountInfo = new Lecturers({
-        account_id: account._id,
-        name,
-        email,
-        major,
-        specialization,
-      });
+    const createdAcc = await account.save();
 
-      await accountInfo.save();
-
-      res.json({
-        success: true,
-        message: 'Account has been created successfully',
-      });
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
-// Pupils //
-// @route POST api/authorization/pupil/register
-// @desc Create new account for pupils
-// @access Public
-router.post('/pupil/register', async (req, res) => {
-  const { username, password, name, email, specialization, class_ } = req.body;
-
-  if (!username || !password || !name || !email || !specialization || !class_)
-    return res.status(400).json({
-      success: false,
-      message: 'Oops! It looks like some data of your request is missing',
+    const accountInfo = new Information({
+      account_id: createdAcc._id,
+      name,
+      email,
+      major,
+      specialization,
+      class: _class,
     });
 
-  try {
-    const usernameExists = await Account.findOne({ username });
+    const createdInfo = await accountInfo.save();
 
-    if (usernameExists)
-      return res
-        .status(400)
-        .json({ success: false, message: 'Username already exists' });
+    createdAcc.info = createdInfo._id;
 
-    let hashedPassword = await argon2.hash(password);
+    await createdAcc.save();
 
-    let account = new Account({
-      username,
-      password: hashedPassword,
-      permission: process.env.PERMISSION_PUPIL,
-    });
-
-    await account.save().then(async (account) => {
-      let accountInfo = new Pupil({
-        account_id: account._id,
-        name,
-        email,
-        specialization,
-        class: class_,
-      });
-
-      await accountInfo.save();
-      await Class.updateOne(
-        { _id: class_ },
-        { $push: { pupil: account._id } },
-        { new: true },
-      );
-
-      res.json({
-        success: true,
-        message: 'Account has been created successfully',
-      });
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
-// Manager
-// @route POST api/authorization/manager/register
-// @desc Create new account for manager
-// @access Public
-router.post('/manager/register', async (req, res) => {
-  const { username, password, name, email, major } = req.body;
-
-  if (!username || !password || !name || !email || !major) {
-    return res.status(400).json({
-      success: false,
-      message: 'Oops! It looks like some data of your request is missing',
-    });
-  }
-
-  try {
-    const usernameExists = await Account.findOne({ username });
-
-    if (usernameExists)
-      return res
-        .status(400)
-        .json({ success: false, message: 'Username already exists' });
-
-    let hashedPassword = await argon2.hash(password);
-
-    let account = new Account({
-      username,
-      password: hashedPassword,
-      permission: process.env.PERMISSION_MANAGER,
-    });
-
-    await account.save().then(async (account) => {
-      let accountInfo = new Manager({
-        account_id: account._id,
-        name,
-        email,
-        major,
-      });
-
-      await accountInfo.save();
-
-      res.json({
-        success: true,
-        message: 'Account has been created successfully',
-      });
+    res.json({
+      success: true,
+      message: 'Account has been created successfully',
     });
   } catch (error) {
     console.log(error);

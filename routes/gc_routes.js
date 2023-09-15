@@ -8,6 +8,8 @@ const storage = require('../config/googleStorage');
 
 const Folder = require('../models/Folder');
 const File = require('../models/File');
+const Require = require('../models/Require');
+const { IncFolderSize } = require('../helpers/FolderHelper');
 
 const router = express.Router();
 
@@ -23,70 +25,133 @@ router.post(
   authorizeUser,
   upload.single('file'),
   async (req, res) => {
-    const file = req.file;
-    const parent_folder = req.body.folderId;
-    const userId = req.data.id;
+    try {
+      const file = req.file;
+      const parent_folder = req.body.folderId;
+      const userId = req.data.id;
 
-    const lastDotIndex = file.originalname.lastIndexOf('.');
+      if (!file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded',
+        });
+      }
 
-    const fileName = file.originalname.substring(0, lastDotIndex);
-    const type = file.originalname.substring(lastDotIndex + 1);
+      const lastDotIndex = file.originalname.lastIndexOf('.');
+      const fileName = file.originalname.substring(0, lastDotIndex);
+      const type = file.originalname.substring(lastDotIndex + 1);
 
-    const originalName = Buffer.from(fileName, 'binary');
-    const utf8Originalname = iconv.decode(originalName, 'utf8');
+      const originalName = Buffer.from(fileName, 'binary');
+      const utf8Originalname = iconv.decode(originalName, 'utf8');
 
-    file.originalname = `${utf8Originalname}_${userId}`;
+      let gcFileName = `${utf8Originalname}_${userId}_${parent_folder}`;
+      const regexPattern = new RegExp(`^${fileName}( \\(\\d+\\))?`);
 
-    if (!file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded',
+      const sentRequire = await Require.findOne({
+        folder: parent_folder,
+        'to.info': userId,
+        'to.sent': true,
       });
-    }
 
-    const process = bucket.file(file.originalname);
+      if (sentRequire) {
+        return res.status(400).json({
+          success: false,
+          message: 'You have already sent this folder',
+        });
+      }
 
-    const stream = process.createWriteStream({
-      metadata: {
-        contentType: file.mimetype,
-      },
-    });
+      const existsFile = await File.find({
+        name: {
+          $regex: regexPattern,
+          $options: 'i',
+        },
+        author: userId,
+        parent_folder,
+      });
 
-    stream.on('error', (err) => {
-      console.log(err);
-      return res
-        .status(400)
-        .json({ success: false, message: 'Upload file failed' });
-    });
+      const lastIndex = await countExistsFile(existsFile);
 
-    stream.on('finish', async () => {
-      try {
-        const url = await process.publicUrl();
+      if (existsFile && existsFile.length > 0) {
+        const newIndex = lastIndex + 1;
+        file.originalname = `${utf8Originalname}_${userId}_${parent_folder} (${newIndex})`;
+        gcFileName = `${utf8Originalname}_${userId}_${parent_folder} (${newIndex})`;
+      }
 
-        const metadata = await process.getMetadata();
+      const uploadProcess = bucket.file(gcFileName);
+
+      const stream = uploadProcess.createWriteStream({
+        metadata: {
+          contentType: file.mimetype,
+        },
+      });
+
+      stream.on('error', (err) => {
+        console.log(err);
+        return res
+          .status(400)
+          .json({ success: false, message: 'Upload file failed' });
+      });
+
+      stream.on('finish', async () => {
+        const url = await uploadProcess.publicUrl();
+        const metadata = await uploadProcess.getMetadata();
 
         const fileData = {
           name: utf8Originalname,
           type: type,
           size: metadata[0].size,
           author: userId,
+          owner: userId,
         };
+
+        if (existsFile && existsFile.length > 0) {
+          fileData.name = `${utf8Originalname} (${lastIndex + 1})`;
+        }
 
         if (parent_folder) {
           fileData.parent_folder = parent_folder;
+          const folder = await Folder.findById(parent_folder);
+          if (folder && folder.owner) {
+            fileData.owner = folder.owner;
+          }
         }
 
         const file = new File(fileData);
-
         const uploadedFile = await file.save();
+
+        await uploadedFile.populate('parent_folder', { isRequireFolder: 1 });
+
         if (uploadedFile.parent_folder) {
-          await Folder.updateOne(
+          const updateFolderPromise = Folder.updateOne(
             {
-              _id: uploadedFile.parent_folder,
-              author: userId,
+              _id: uploadedFile.parent_folder._id,
             },
-            { $push: { files: uploadedFile._id } },
+            {
+              $push: { files: uploadedFile._id },
+            },
           );
+
+          const incFolderSizePromise = IncFolderSize(
+            uploadedFile.parent_folder._id,
+            uploadedFile.size,
+          );
+
+          await Promise.all([updateFolderPromise, incFolderSizePromise]);
+        }
+
+        if (uploadedFile.parent_folder.isRequireFolder) {
+          const require = await Require.findOne({
+            folder: uploadedFile.parent_folder._id,
+          }).exec();
+
+          if (require) {
+            await require.updateStatus({
+              accountId: uploadedFile.author,
+              memStatus: process.env.REQ_STATUS_DONE,
+              reqStatus: process.env.REQ_STATUS_PROCESSING,
+            });
+            await require.updateIsSent(uploadedFile.author);
+          }
         }
 
         return res.json({
@@ -94,17 +159,30 @@ router.post(
           message: 'File has been uploaded successfully',
           data: { url },
         });
-      } catch (error) {
-        console.log(error);
-        return res
-          .status(500)
-          .json({ success: false, message: 'Internal Server Error' });
-      }
-    });
+      });
 
-    stream.end(file.buffer);
+      stream.end(file.buffer);
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
   },
 );
+
+const countExistsFile = async (existsFile) => {
+  return existsFile.reduce((max, file) => {
+    const match = file.name.match(/\((\d+)\)/);
+    if (match) {
+      const number = parseInt(match[1], 10);
+      if (!isNaN(number) && number > max) {
+        return number;
+      }
+    }
+    return max;
+  }, 0);
+};
 
 // @router POST api/gc/download
 // @desc Download file from Google Cloud Storage

@@ -6,6 +6,8 @@ const storage = require('../config/googleStorage');
 
 const File = require('../models/File');
 const Folder = require('../models/Folder');
+const Require = require('../models/Require');
+const { DescFolderSize } = require('../helpers/FolderHelper');
 
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
@@ -37,7 +39,19 @@ router.post('/', authorizeUser, async (req, res) => {
       parent_folder,
       author,
       link,
+      owner: author,
     });
+    console.log(parent_folder);
+
+    if (parent_folder) {
+      const parentFolder = await Folder.findById(parent_folder);
+
+      console.log(parentFolder);
+
+      if (parentFolder && parentFolder.owner) {
+        createFile.owner = parentFolder.owner;
+      }
+    }
 
     await createFile.save().then(async (file) => {
       if (file.parent_folder) {
@@ -78,6 +92,7 @@ router.post('/copy', authorizeUser, async (req, res) => {
   try {
     if (
       data.author !== userId &&
+      data.parent_folder.owner !== userId &&
       (!data.sharedTo.includes(email) ||
         !data.permission.includes(process.env.PERMISSION_EDIT))
     )
@@ -86,16 +101,22 @@ router.post('/copy', authorizeUser, async (req, res) => {
         message: 'You do not have permission to do this',
       });
 
-    const currentName = `${data.name}_${userId}`;
-    let destName = currentName;
+    const fileExists = await File.findOne({ name: data.name, parent_folder });
 
-    const nameExists = await File.find({ name: data.name, author: userId });
-
-    if (nameExists.length > 0) {
-      const name = data.name;
-      data.name = `${name} (${nameExists.length})`;
-      destName = `${name} (${nameExists.length})_${userId}`;
+    if (fileExists) {
+      return res.json({ success: false, message: 'File is already exists' });
     }
+
+    const fileName = data.name.split(' ')[0];
+    const fileNum = data.name.split(' ')[1];
+
+    const currentName = `${fileName}_${data.author}_${data.parent_folder._id}${
+      fileNum ? ` ${fileNum}` : ''
+    }`;
+
+    let destName = `${fileName}_${userId}_${folderId}${
+      fileNum ? ` ${fileNum}` : ''
+    }`;
 
     const copyFile = new File({
       name: data.name,
@@ -104,7 +125,16 @@ router.post('/copy', authorizeUser, async (req, res) => {
       parent_folder: folderId,
       link: data.link,
       author: userId,
+      owner: data.owner,
     });
+
+    if (folderId) {
+      const parentFolder = await Folder.findById(folderId);
+
+      if (parentFolder && parentFolder.owner) {
+        copyFile.owner = parentFolder.owner;
+      }
+    }
 
     const copiedFile = await copyFile.save();
     await gcCopyFile(currentName, destName);
@@ -142,7 +172,7 @@ router.post('/move', authorizeUser, async (req, res) => {
   const { data, folderId } = req.body;
 
   try {
-    if (data.author !== userId)
+    if (data.author !== userId && data.parent_folder.owner !== userId)
       return res.status(400).json({
         success: false,
         message: 'You do not have permission to do this',
@@ -150,7 +180,7 @@ router.post('/move', authorizeUser, async (req, res) => {
 
     const newParentFolder = await Folder.findOne({
       _id: folderId,
-      author: userId,
+      $or: [{ author: userId }, { owner: userId }],
     });
 
     if (!newParentFolder)
@@ -163,9 +193,12 @@ router.post('/move', authorizeUser, async (req, res) => {
     await Promise.all([
       File.updateOne(
         { _id: data._id, author: userId },
-        { parent_folder: newParentFolder._id },
+        {
+          parent_folder: newParentFolder._id,
+          owner: newParentFolder.owner ? newParentFolder.owner : userId,
+        },
       ),
-      Folder.findByIdAndUpdate(data.parent_folder, {
+      Folder.findByIdAndUpdate(data.parent_folder._id, {
         $pull: { files: data._id },
         $inc: { size: -data.size },
         $set: { modifiedAt: Date.now() },
@@ -197,16 +230,63 @@ router.post('/delete', authorizeUser, async (req, res) => {
   const { fileData } = req.body;
 
   try {
-    await File.deleteOne({ _id: fileData._id, author: userId });
-    if (fileData.parent_folder) {
-      await Folder.findByIdAndUpdate(fileData.parent_folder, {
-        $pull: { files: fileData._id },
-        $inc: { size: -fileData.size },
-        $set: { modifiedAt: Date.now() },
-      });
+    let params = {
+      _id: fileData._id,
+      author: userId,
+    };
+
+    if (fileData.parent_folder && fileData.parent_folder.owner) {
+      if (userId === fileData.parent_folder.owner.toString()) {
+        params = {
+          _id: fileData._id,
+        };
+      }
     }
 
-    const gcFileName = `${fileData.name}_${userId}`;
+    await File.deleteOne(params);
+    if (fileData.parent_folder) {
+      const updateFolderPromise = Folder.findByIdAndUpdate(
+        fileData.parent_folder._id,
+        {
+          $pull: { files: fileData._id },
+          $set: { modifiedAt: Date.now() },
+        },
+      );
+
+      const descFolderSizePromise = DescFolderSize(
+        fileData.parent_folder._id,
+        fileData.size,
+      );
+
+      await Promise.all([updateFolderPromise, descFolderSizePromise]);
+    }
+
+    if (fileData.parent_folder.isRequireFolder) {
+      await Require.findOne({
+        folder: fileData.parent_folder._id,
+      })
+        .exec()
+        .then(async (require) => {
+          await require.updateStatus({
+            accountId: fileData.author._id,
+            memStatus: process.env.REQ_STATUS_PROCESSING,
+          });
+          await require.removeSent(fileData.author._id);
+        })
+        .catch((err) => console.log(err));
+    }
+
+    const regex = /^(.*?)\s*(\(.+?\))$/;
+    const match = fileData.name.match(regex);
+
+    const fileName = match ? match[1].trim() : fileData.name.trim();
+    const fileNum = match ? `(${match[2]})` : null;
+
+    let gcFileName = `${fileName}_${fileData.author._id}_${fileData.parent_folder._id}`;
+
+    if (fileNum) {
+      gcFileName = `${fileName}_${userId}_${fileData.parent_folder} ${fileNum}`;
+    }
 
     await gcDeleteFile(gcFileName);
 
@@ -245,7 +325,14 @@ router.post('/multiple-delete', authorizeUser, async (req, res) => {
         });
       }
 
-      const gcFileName = `${file.name}_${userId}`;
+      const fileName = file.name.split(' ')[0];
+      const fileNum = file.name.split(' ')[1];
+
+      let gcFileName = `${fileName}_${userId}_${file.parent_folder}`;
+
+      if (fileNum) {
+        gcFileName = `${fileName}_${userId}_${file.parent_folder} ${fileNum}`;
+      }
 
       return await gcDeleteFile(gcFileName);
     });
@@ -665,11 +752,28 @@ router.get('/:id', authorizeUser, async (req, res) => {
   const folderId = req.params.id;
 
   try {
-    const files = await File.find({
+    let files = await File.find({
       parent_folder: folderId,
-      author: userId,
       isDelete: false,
-    });
+      // $or: [{ sharedTo: { $elemMatch: { $eq: userId } }, author: userId }],
+    })
+      .populate('parent_folder')
+      .populate({
+        path: 'author',
+        select: 'permission info',
+        populate: {
+          path: 'info',
+          select: 'name email',
+        },
+      })
+      .populate({
+        path: 'owner',
+        select: 'permission info',
+        populate: {
+          path: 'info',
+          select: 'name email',
+        },
+      });
 
     if (!files)
       return res

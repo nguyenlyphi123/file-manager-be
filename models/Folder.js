@@ -10,6 +10,11 @@ const FolderSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: 'account',
   },
+  owner: {
+    type: Schema.Types.ObjectId,
+    ref: 'account',
+    default: null,
+  },
   parent_folder: {
     type: Schema.Types.ObjectId,
     ref: 'folder',
@@ -49,6 +54,10 @@ const FolderSchema = new Schema({
     default: false,
   },
   isDelete: {
+    type: Boolean,
+    default: false,
+  },
+  isRequireFolder: {
     type: Boolean,
     default: false,
   },

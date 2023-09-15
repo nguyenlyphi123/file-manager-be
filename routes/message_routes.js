@@ -4,10 +4,6 @@ const router = express.Router();
 const { authorizeUser } = require('../middlewares/authorization');
 const Message = require('../models/Message');
 const Chat = require('../models/Chat');
-const Manager = require('../models/Manager');
-const Lecturers = require('../models/Lecturers');
-const Pupil = require('../models/Pupil');
-const Account = require('../models/Account');
 
 // @route POST api/message
 // @desc Create a new message by chatId
@@ -99,44 +95,16 @@ router.get('/:chatId', authorizeUser, async (req, res) => {
       .populate({
         path: 'sender',
         select: '-password',
+        populate: {
+          path: 'info',
+        },
       });
 
     if (!messages || messages.length === 0) {
       return res.json({ success: true, data: [] });
     }
 
-    const uniqueSenders = messages.reduce((acc, message) => {
-      const { _id, permission } = message.sender;
-      const key = `${_id}-${permission}`;
-
-      if (!acc.has(key)) {
-        acc.set(key, { _id, permission });
-      }
-
-      return acc;
-    }, new Map());
-
-    const sendersInfo = await getSendersInfo(
-      Array.from(uniqueSenders.values()),
-    );
-
-    const updatedMessages = messages.map((message) => {
-      const senderInfo = sendersInfo.find((info) =>
-        info._id.equals(message.sender._id),
-      );
-      const sender = senderInfo ? { ...senderInfo } : message.sender;
-
-      return {
-        _id: message._id,
-        sender,
-        content: message.content,
-        chat: message.chat,
-        seen: message.seen,
-        createAt: message.createAt,
-      };
-    });
-
-    const messagesToUpdate = updatedMessages
+    const messagesToUpdate = messages
       .filter((message) => !message.seen && message.sender._id !== userId)
       .map((message) => message._id);
 
@@ -147,7 +115,7 @@ router.get('/:chatId', authorizeUser, async (req, res) => {
       );
     }
 
-    return res.json({ success: true, data: updatedMessages });
+    return res.json({ success: true, data: messages.reverse() });
   } catch (error) {
     console.log(error);
     return res
@@ -155,51 +123,5 @@ router.get('/:chatId', authorizeUser, async (req, res) => {
       .json({ success: false, message: 'Internal Server Error' });
   }
 });
-
-const getSendersInfo = async (senders) => {
-  const sendersInfo = senders.map(async (sender) => {
-    switch (sender.permission) {
-      case process.env.PERMISSION_MANAGER:
-        const managerInfo = await Manager.findOne({ account_id: sender._id });
-
-        return {
-          _id: sender._id,
-          permission: sender.permission,
-          name: managerInfo.name,
-          email: managerInfo.email,
-          lastSigned: sender.lastSigned,
-        };
-
-      case process.env.PERMISSION_LECTURERS:
-        const lecturersInfo = await Lecturers.findOne({
-          account_id: sender._id,
-        });
-
-        return {
-          _id: sender._id,
-          permission: sender.permission,
-          name: lecturersInfo.name,
-          email: lecturersInfo.email,
-          lastSigned: sender.lastSigned,
-        };
-
-      case process.env.PERMISSION_PUPIL:
-        const pupilInfo = await Pupil.findOne({ account_id: sender._id });
-
-        return {
-          _id: sender._id,
-          permission: sender.permission,
-          name: pupilInfo.name,
-          email: pupilInfo.email,
-          lastSigned: sender.lastSigned,
-        };
-
-      default:
-        return;
-    }
-  });
-
-  return Promise.all(sendersInfo);
-};
 
 module.exports = router;

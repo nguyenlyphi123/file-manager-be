@@ -14,6 +14,10 @@ const AccountSchema = new Schema({
     type: String,
     enum: ['ADMIN', 'MANAGER', 'LECTURERS', 'PUPIL'],
   },
+  info: {
+    type: Schema.Types.ObjectId,
+    ref: 'information',
+  },
   createAt: {
     type: Date,
     default: Date.now(),

@@ -3,9 +3,7 @@ const router = express.Router();
 
 const { authorizeUser } = require('../middlewares/authorization');
 const Account = require('../models/Account');
-const Lecturers = require('../models/Lecturers');
-const Pupil = require('../models/Pupil');
-const Manager = require('../models/Manager');
+const Information = require('../models/Information');
 
 // @route GET api/account/:search
 // @desc Get all accounts by search
@@ -14,26 +12,16 @@ router.get('/:search', authorizeUser, async (req, res) => {
   const search = req.params.search;
 
   try {
-    const manager = await Manager.find({
+    const information = await Information.find({
       email: { $regex: search, $options: 'i' },
     });
 
-    const lecturers = await Lecturers.find({
-      email: { $regex: search, $options: 'i' },
-    });
-
-    const pupil = await Pupil.find({
-      email: { $regex: search, $options: 'i' },
-    });
-
-    const data = [...manager, ...lecturers, ...pupil];
-
-    if (data.length === 0)
+    if (information.length === 0)
       return res
         .status(404)
         .json({ success: false, message: 'No accounts found' });
 
-    res.json({ success: true, data: data });
+    res.json({ success: true, data: information });
   } catch (error) {
     console.log(error);
     return res

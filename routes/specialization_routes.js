@@ -3,10 +3,8 @@ const router = express.Router();
 
 const { authorizeUser } = require('../middlewares/authorization');
 const Specialization = require('../models/Specialization');
-const Lecturers = require('../models/Lecturers');
-const Pupil = require('../models/Pupil');
 const Class = require('../models/Class');
-const Manager = require('../models/Manager');
+const Information = require('../models/Information');
 
 // @route POST api/specialization
 // @desc Create new specialization for lecturers
@@ -54,7 +52,7 @@ router.get('/', authorizeUser, async (req, res) => {
   const permission = req.data.permission;
 
   try {
-    const userData = await getUserData(userId, permission);
+    const userData = await getUserData(userId);
 
     if (!userData) {
       return res
@@ -83,20 +81,8 @@ router.get('/', authorizeUser, async (req, res) => {
   }
 });
 
-const getUserData = async (userId, permission) => {
-  switch (permission) {
-    case process.env.PERMISSION_MANAGER:
-      return await Manager.findOne({ account_id: userId });
-
-    case process.env.PERMISSION_LECTURERS:
-      return await Lecturers.findOne({ account_id: userId });
-
-    case process.env.PERMISSION_PUPIL:
-      return await Pupil.findOne({ account_id: userId });
-
-    default:
-      return null;
-  }
+const getUserData = async (userId) => {
+  return await Information.findOne({ account_id: userId });
 };
 
 const getSpecializationByManager = async (major) => {

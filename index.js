@@ -17,6 +17,7 @@ const lecturersRouter = require('./routes/lecturers_routes');
 const chatRouter = require('./routes/chat_routes');
 const messageRouter = require('./routes/message_routes');
 const accountRouter = require('./routes/account_routes');
+const requireRouter = require('./routes/require_routes');
 
 const origin =
   process.env.NODE_ENV === 'production'
@@ -66,6 +67,7 @@ app.use('/api/lecturers', lecturersRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/message', messageRouter);
 app.use('/api/account', accountRouter);
+app.use('/api/require', requireRouter);
 
 const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),
