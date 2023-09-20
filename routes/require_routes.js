@@ -6,6 +6,13 @@ const { authorizeUser } = require('../middlewares/authorization');
 const Require = require('../models/Require');
 const RequireOrder = require('../models/RequireOrder');
 const Folder = require('../models/Folder');
+const {
+  isDone,
+  getRequireStatusParams,
+  isAuthor,
+  getMemberStatus,
+  sortByOrder,
+} = require('../helpers/RequireHelper');
 
 // @route POST api/require
 // @desc Create new require
@@ -119,13 +126,17 @@ router.put('/status', authorizeUser, async (req, res) => {
   try {
     const require = await Require.findById(requireId);
 
-    let updateStatusParams = {
-      accountId: userId,
-      memStatus:
-        userId !== require.author.toString() ? destination.droppableId : null,
-      reqStatus:
-        userId === require.author.toString() ? destination.droppableId : null,
-    };
+    if (isDone(require))
+      return res.status(400).json({
+        success: false,
+        message: 'This task has been completed and cannot be changed',
+      });
+
+    let updateStatusParams = getRequireStatusParams(
+      require,
+      userId,
+      destination.droppableId,
+    );
 
     await require.updateStatus(updateStatusParams);
 
@@ -167,48 +178,85 @@ router.put('/status', authorizeUser, async (req, res) => {
 // @desc Get all require
 // @access Private
 router.get('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-
   try {
+    const userId = req.data.id;
+
+    // Find all requires for the user
     const requires = await Require.find({
-      $or: [{ 'author': userId }, { 'to': { $elemMatch: { 'info': userId } } }],
-    })
-      .populate({
-        path: 'to.info',
-        select: 'permission',
-        populate: {
-          path: 'info',
-          select: 'name email',
-        },
-      })
-      .populate('folder')
-      .populate({
+      $or: [{ author: userId }, { 'to.info': userId }],
+    }).populate([
+      {
         path: 'author',
         select: 'info',
         populate: {
           path: 'info',
           select: 'name email',
         },
-      });
+      },
+      {
+        path: 'to.info',
+        select: 'permission',
+        populate: {
+          path: 'info',
+          select: 'name email',
+        },
+      },
+      {
+        path: 'folder',
+        select: 'name parent_folder',
+      },
+    ]);
 
+    // Group requires by status for the user
+    const groupedRequires = {
+      waiting: [],
+      processing: [],
+      done: [],
+      cancel: [],
+    };
+
+    requires.forEach((require) => {
+      const status = isAuthor(require, userId)
+        ? require.status
+        : getMemberStatus(require, userId);
+      groupedRequires[status].push(require);
+    });
+
+    // Get the user's require order
     const requireOrder = await RequireOrder.findOne(
       { uid: userId },
-      { _id: 0, waiting: 1, processing: 1, done: 1, cancel: 1 },
+      { _id: 0, uid: 0 },
     );
 
+    // Sort requires based on the user's require order
+    const sortedWaitingRequire = sortByOrder(
+      groupedRequires.waiting,
+      requireOrder.waiting,
+    );
+    const sortedProcessingRequire = sortByOrder(
+      groupedRequires.processing,
+      requireOrder.processing,
+    );
+    const sortedDoneRequire = sortByOrder(
+      groupedRequires.done,
+      requireOrder.done,
+    );
+    const sortedCancelRequire = sortByOrder(
+      groupedRequires.cancel,
+      requireOrder.cancel,
+    );
+
+    // Create response data
     const resData = {
-      requires,
-      requireOrder: requireOrder || {
-        waiting: [],
-        processing: [],
-        done: [],
-        cancel: [],
-      },
+      waiting: sortedWaitingRequire,
+      processing: sortedProcessingRequire,
+      done: sortedDoneRequire,
+      cancel: sortedCancelRequire,
     };
 
     res.json({ success: true, data: resData });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return res
       .status(500)
       .json({ success: false, message: 'Internal Server Error' });

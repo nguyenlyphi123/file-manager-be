@@ -815,23 +815,24 @@ router.get(
       let folders = await Folder.find({
         parent_folder: folderId,
         isDelete: false,
-      })
-        .populate({
+      }).populate([
+        {
           path: 'author',
           select: 'permission info',
           populate: {
             path: 'info',
             select: 'name email',
           },
-        })
-        .populate({
+        },
+        {
           path: 'owner',
           select: 'permission info',
           populate: {
             path: 'info',
             select: 'name email',
           },
-        });
+        },
+      ]);
 
       await Folder.findOneAndUpdate(
         { _id: folderId },
@@ -859,28 +860,18 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
       author: userId,
       parent_folder: null,
       isDelete: false,
-    })
-      .populate('parent_folder')
-      .populate('sub_folder')
-      .populate('files')
-      .populate({
+    }).populate([
+      {
         path: 'author',
         select: 'info',
-        populate: {
-          path: 'info',
-          select: 'name email',
-        },
-      })
-      .populate({
+        populate: { path: 'info', select: 'name email' },
+      },
+      {
         path: 'owner',
         select: 'info',
-        populate: {
-          path: 'info',
-          select: 'name email',
-        },
-      });
-
-    if (!folders) return res.json({ success: true, data: [] });
+        populate: { path: 'info', select: 'name email' },
+      },
+    ]);
 
     res.json({ success: true, data: folders });
   } catch (error) {
