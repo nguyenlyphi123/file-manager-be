@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const { Types } = require('mongoose');
 
 const { authorizeUser } = require('../middlewares/authorization');
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
+
+const { getChatWithQuery } = require('../controllers/chat');
 
 // @route POST api/chat
 // @desc Create a new chat
@@ -229,23 +232,11 @@ router.get('/', authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const chats = await Chat.find({
-      member: { $elemMatch: { $eq: userId } },
-    })
-      .populate({
-        path: 'member',
-        select: '-password',
-        populate: {
-          path: 'info',
-        },
-      })
-      .populate('lastMessage')
-      .populate('author', '-password');
+    const queries = {
+      member: { $elemMatch: { $eq: new Types.ObjectId(userId) } },
+    };
 
-    if (!chats)
-      return res
-        .status(404)
-        .json({ success: false, message: 'No chats found' });
+    const chats = await getChatWithQuery(queries);
 
     return res.json({ success: true, data: chats });
   } catch (error) {

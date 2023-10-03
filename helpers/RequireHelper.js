@@ -3,9 +3,7 @@ const isDone = (require) => {
 };
 
 const getRequireStatusParams = (require, userId, destination) => {
-  const isAuthor = require.author.toString() === userId;
-
-  if (isAuthor) {
+  if (isAuthor(require.author, userId)) {
     return {
       accountId: userId,
       reqStatus: destination,
@@ -15,7 +13,14 @@ const getRequireStatusParams = (require, userId, destination) => {
       (toItem) => toItem.status === process.env.REQ_STATUS_DONE,
     ).length;
 
-    if (countDone === 0) {
+    const countProcessing = require.to.filter(
+      (toItem) => toItem.status === process.env.REQ_STATUS_PROCESSING,
+    ).length;
+
+    if (
+      countProcessing === 0 &&
+      destination === process.env.REQ_STATUS_PROCESSING
+    ) {
       return {
         accountId: userId,
         memStatus: destination,
@@ -23,11 +28,25 @@ const getRequireStatusParams = (require, userId, destination) => {
       };
     }
 
-    if (countDone === require.to.length - 1) {
+    if (
+      countDone === require.to.length - 1 &&
+      destination === process.env.REQ_STATUS_DONE
+    ) {
       return {
         accountId: userId,
         memStatus: destination,
         reqStatus: process.env.REQ_STATUS_DONE,
+      };
+    }
+
+    if (
+      countProcessing === 1 &&
+      destination === process.env.REQ_STATUS_WAITING
+    ) {
+      return {
+        accountId: userId,
+        memStatus: destination,
+        reqStatus: process.env.REQ_STATUS_WAITING,
       };
     }
 
@@ -38,8 +57,8 @@ const getRequireStatusParams = (require, userId, destination) => {
   }
 };
 
-const isAuthor = (require, userId) => {
-  return require.author._id.toString() === userId;
+const isAuthor = (authorId, userId) => {
+  return authorId.toString() === userId;
 };
 
 const getMemberStatus = (require, userId) => {

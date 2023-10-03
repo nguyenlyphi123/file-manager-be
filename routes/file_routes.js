@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { Types } = require('mongoose');
 const { authorizeUser } = require('../middlewares/authorization');
 
 const storage = require('../config/googleStorage');
@@ -8,6 +9,8 @@ const File = require('../models/File');
 const Folder = require('../models/Folder');
 const Require = require('../models/Require');
 const { DescFolderSize } = require('../helpers/FolderHelper');
+const { fileResponseEx } = require('../types/file');
+const { getFileWithQuery } = require('../controllers/file');
 
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
@@ -657,14 +660,11 @@ router.get('/', authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const files = await File.find({ author: userId, isDelete: false }).populate(
-      'parent_folder',
-    );
-
-    if (!files)
-      return res
-        .status(404)
-        .json({ success: false, message: 'Files not found' });
+    const queries = {
+      author: new Types.ObjectId(userId),
+      isDelete: false,
+    };
+    const files = await getFileWithQuery(queries);
 
     res.json({ success: true, data: files });
   } catch (error) {
@@ -682,9 +682,11 @@ router.get('/trash', authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const files = await File.find({ author: userId, isDelete: true }).populate(
-      'parent_folder',
-    );
+    const queries = {
+      author: new Types.ObjectId(userId),
+      isDelete: true,
+    };
+    const files = await getFileWithQuery(queries);
 
     if (!files)
       return res
@@ -706,9 +708,11 @@ router.get('/trash', authorizeUser, async (req, res) => {
 router.get('/star', authorizeUser, async (req, res) => {
   const userId = req.data.id;
   try {
-    const files = await File.find({ author: userId, isStar: true }).populate(
-      'parent_folder',
-    );
+    const queries = {
+      author: new Types.ObjectId(userId),
+      isStar: true,
+    };
+    const files = await getFileWithQuery(queries);
 
     if (!files)
       return res
@@ -731,9 +735,10 @@ router.get('/shared', authorizeUser, async (req, res) => {
   const email = req.data.email;
 
   try {
-    const files = await File.find({
-      sharedTo: { $elemMatch: { $eq: email } },
-    }).populate('parent_folder');
+    const queries = {
+      sharedTo: email,
+    };
+    const files = await getFileWithQuery(queries);
 
     res.json({ success: true, data: files });
   } catch (error) {
@@ -748,37 +753,15 @@ router.get('/shared', authorizeUser, async (req, res) => {
 // @desc Get file by folderId
 // @access Private
 router.get('/:id', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
   const folderId = req.params.id;
 
   try {
-    let files = await File.find({
-      parent_folder: folderId,
+    const queries = {
+      parent_folder: new Types.ObjectId(folderId),
       isDelete: false,
-      // $or: [{ sharedTo: { $elemMatch: { $eq: userId } }, author: userId }],
-    })
-      .populate('parent_folder')
-      .populate({
-        path: 'author',
-        select: 'permission info',
-        populate: {
-          path: 'info',
-          select: 'name email',
-        },
-      })
-      .populate({
-        path: 'owner',
-        select: 'permission info',
-        populate: {
-          path: 'info',
-          select: 'name email',
-        },
-      });
+    };
 
-    if (!files)
-      return res
-        .status(404)
-        .json({ success: false, message: 'Files not found' });
+    const files = await getFileWithQuery(queries);
 
     res.json({ success: true, data: files });
   } catch (error) {

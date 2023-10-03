@@ -9,6 +9,7 @@ const storage = require('../config/googleStorage');
 const Folder = require('../models/Folder');
 const File = require('../models/File');
 const Require = require('../models/Require');
+const RequireOrder = require('../models/RequireOrder');
 const { IncFolderSize } = require('../helpers/FolderHelper');
 
 const router = express.Router();
@@ -143,6 +144,18 @@ router.post(
           const require = await Require.findOne({
             folder: uploadedFile.parent_folder._id,
           }).exec();
+
+          const memberStatus = require.to.find(
+            (item) => item.info.toString() === userId.toString(),
+          ).status;
+
+          await RequireOrder.updateOne(
+            { uid: userId },
+            {
+              $push: { done: require._id },
+              $pull: { [memberStatus]: require._id },
+            },
+          );
 
           if (require) {
             await require.updateStatus({

@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
+const { Types } = require('mongoose');
 
 const Folder = require('../models/Folder');
 const File = require('../models/File');
 const authorization = require('../middlewares/authorization');
 const { IncFolderSize } = require('../helpers/FolderHelper');
+const { folderResponseEx } = require('../types/folder');
+const { getFolderWithQuery } = require('../controllers/folder');
 
 // @route POST api/folder
 // @desc Create new folder
@@ -812,32 +815,20 @@ router.get(
     const folderId = req.params.folderId;
 
     try {
-      let folders = await Folder.find({
-        parent_folder: folderId,
+      const queries = {
+        parent_folder: new Types.ObjectId(folderId),
         isDelete: false,
-      }).populate([
-        {
-          path: 'author',
-          select: 'permission info',
-          populate: {
-            path: 'info',
-            select: 'name email',
-          },
-        },
-        {
-          path: 'owner',
-          select: 'permission info',
-          populate: {
-            path: 'info',
-            select: 'name email',
-          },
-        },
-      ]);
+      };
+      const folderData = await getFolderWithQuery(queries);
 
-      await Folder.findOneAndUpdate(
+      const updateFolder = await Folder.findOneAndUpdate(
         { _id: folderId },
         { lastOpened: Date.now() },
       );
+
+      const data = await Promise.all([folderData, updateFolder]);
+
+      const folders = data[0];
 
       res.json({ success: true, data: folders });
     } catch (error) {
@@ -856,22 +847,12 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const folders = await Folder.find({
-      author: userId,
+    const queries = {
+      author: new Types.ObjectId(userId),
       parent_folder: null,
       isDelete: false,
-    }).populate([
-      {
-        path: 'author',
-        select: 'info',
-        populate: { path: 'info', select: 'name email' },
-      },
-      {
-        path: 'owner',
-        select: 'info',
-        populate: { path: 'info', select: 'name email' },
-      },
-    ]);
+    };
+    const folders = await getFolderWithQuery(queries);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -889,19 +870,12 @@ router.get('/starred', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const folders = await Folder.find({
-      author: userId,
+    const queries = {
+      author: new Types.ObjectId(userId),
       isStar: true,
       isDelete: false,
-    })
-      .populate('parent_folder')
-      .populate('sub_folder')
-      .populate('files');
-
-    if (!folders)
-      return res
-        .status(404)
-        .json({ success: false, message: 'No folders are stared' });
+    };
+    const folders = await getFolderWithQuery(queries);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -919,15 +893,11 @@ router.get('/trash', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
   try {
-    const folders = await Folder.find({ author: userId, isDelete: true })
-      .populate('parent_folder')
-      .populate('sub_folder')
-      .populate('files');
-
-    if (!folders)
-      return res
-        .status(404)
-        .json({ success: false, message: 'No folder was deleted' });
+    const queries = {
+      author: new Types.ObjectId(userId),
+      isDelete: true,
+    };
+    const folders = await getFolderWithQuery(queries);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -969,12 +939,10 @@ router.get('/shared', authorization.authorizeUser, async (req, res) => {
   const email = req.data.email;
 
   try {
-    const folders = await Folder.find({
-      sharedTo: { $elemMatch: { $eq: email } },
-    })
-      .populate('parent_folder')
-      .populate('sub_folder')
-      .populate('files');
+    const queries = {
+      sharedTo: email,
+    };
+    const folders = await getFolderWithQuery(queries);
 
     res.json({ success: true, data: folders });
   } catch (error) {

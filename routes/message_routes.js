@@ -4,6 +4,8 @@ const router = express.Router();
 const { authorizeUser } = require('../middlewares/authorization');
 const Message = require('../models/Message');
 const Chat = require('../models/Chat');
+const { getMessagesWithQuery } = require('../controllers/message');
+const { Types } = require('mongoose');
 
 // @route POST api/message
 // @desc Create a new message by chatId
@@ -27,12 +29,16 @@ router.post('/', authorizeUser, async (req, res) => {
 
     await message.save();
 
-    await Chat.findOneAndUpdate(
+    await Chat.updateOne(
       { _id: chat },
-      { $set: { lastOpened: Date.now() } },
+      {
+        $set: {
+          lastOpened: Date.now(),
+          modifiedAt: Date.now(),
+          lastMessage: message._id,
+        },
+      },
     );
-
-    await Chat.findOneAndUpdate({ _id: chat }, { lastMessage: message._id });
 
     return res.json({ success: true, data: message });
   } catch (error) {
@@ -54,13 +60,21 @@ router.get('/unseen', authorizeUser, async (req, res) => {
       member: { $elemMatch: { $eq: userId } },
     });
 
-    const chatIds = chats.map((chat) => chat._id);
+    const chatIds = chats.map((chat) => new Types.ObjectId(chat._id));
 
-    const messages = await Message.find({
-      chat: { $in: chatIds },
-      seen: false,
-      sender: { $ne: userId },
-    });
+    const queries = {
+      queries: {
+        chat: {
+          $in: chatIds,
+        },
+        sender: {
+          $ne: new Types.ObjectId(userId),
+        },
+        seen: false,
+      },
+    };
+
+    const messages = await getMessagesWithQuery(queries);
 
     const data = {
       hasUnseenMessages: messages.length > 0,
@@ -88,24 +102,20 @@ router.get('/:chatId', authorizeUser, async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    const messages = await Message.find({ chat: chatId })
-      .sort({ _id: -1 })
-      .skip(offset)
-      .limit(limit)
-      .populate({
-        path: 'sender',
-        select: '-password',
-        populate: {
-          path: 'info',
-        },
-      });
+    const queries = {
+      queries: {
+        chat: new Types.ObjectId(chatId),
+      },
+      skip: offset,
+      limit: limit,
+    };
 
-    if (!messages || messages.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
+    const messages = await getMessagesWithQuery(queries);
 
     const messagesToUpdate = messages
-      .filter((message) => !message.seen && message.sender._id !== userId)
+      .filter(
+        (message) => !message.seen && message.sender._id.toString() !== userId,
+      )
       .map((message) => message._id);
 
     if (messagesToUpdate.length > 0) {

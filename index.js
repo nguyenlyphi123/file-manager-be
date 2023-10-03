@@ -116,4 +116,27 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('Client disconnected');
   });
+
+  socket.on('send-require', (require) => {
+    const { to, author, endDate, startDate, file_type, message, note, title } =
+      require;
+
+    if (!to) return;
+
+    const responseData = {
+      author,
+      endDate,
+      startDate,
+      file_type,
+      message,
+      note,
+      title,
+    };
+
+    const receiverIds = to.map((receiver) => receiver.info);
+
+    receiverIds.forEach((id) => {
+      socket.to(id).emit('receive-require', responseData);
+    });
+  });
 });
