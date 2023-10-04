@@ -11,6 +11,7 @@ const File = require('../models/File');
 const Require = require('../models/Require');
 const RequireOrder = require('../models/RequireOrder');
 const { IncFolderSize } = require('../helpers/FolderHelper');
+const { isAuthor } = require('../helpers/AuthHelper');
 
 const router = express.Router();
 
@@ -120,7 +121,10 @@ router.post(
         const file = new File(fileData);
         const uploadedFile = await file.save();
 
-        await uploadedFile.populate('parent_folder', { isRequireFolder: 1 });
+        await uploadedFile.populate('parent_folder', {
+          isRequireFolder: 1,
+          owner: 1,
+        });
 
         if (uploadedFile.parent_folder) {
           const updateFolderPromise = Folder.updateOne(
@@ -140,7 +144,10 @@ router.post(
           await Promise.all([updateFolderPromise, incFolderSizePromise]);
         }
 
-        if (uploadedFile.parent_folder.isRequireFolder) {
+        if (
+          uploadedFile.parent_folder.isRequireFolder &&
+          !isAuthor(userId, uploadedFile.parent_folder.owner)
+        ) {
           const require = await Require.findOne({
             folder: uploadedFile.parent_folder._id,
           }).exec();

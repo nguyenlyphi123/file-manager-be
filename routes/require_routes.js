@@ -178,10 +178,9 @@ async function updateRequireOrder(
   const requireOrder = await RequireOrder.findOne({ uid: userId });
 
   const updateOrder = (data, sourceDroppableId, destDroppableId) => {
-    console.log(data);
     if (sourceDroppableId === destDroppableId) {
-      const removedRequire = data.splice(source.index, 1);
-      data.splice(destination.index, 0, removedRequire[0]);
+      const removedRequire = data[sourceDroppableId].splice(source.index, 1);
+      data[sourceDroppableId].splice(destination.index, 0, removedRequire[0]);
     } else {
       const sourceData = [...data[sourceDroppableId]];
       const destinationData = [...data[destDroppableId]];
@@ -366,6 +365,7 @@ router.get('/', authorizeUser, async (req, res) => {
       const status = isAuthor(require.author._id, userId)
         ? require.status
         : getMemberStatus(require, userId);
+
       groupedRequires[status].push(require);
     });
 
@@ -410,37 +410,6 @@ router.get('/', authorizeUser, async (req, res) => {
   }
 });
 
-// @route GET api/require/:id
-// @desc Get require by id
-// @access Private
-router.get('/:id', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const requireId = req.params.id;
-
-  try {
-    const queries = {
-      $and: [
-        {
-          $or: [
-            { author: new Types.ObjectId(userId) },
-            { 'to.info': new Types.ObjectId(userId) },
-          ],
-        },
-        { _id: new Types.ObjectId(requireId) },
-      ],
-    };
-
-    const require = await getRequireWithQuery(queries);
-
-    res.json({ success: true, data: require[0] });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
 // @route GET api/require/new
 // @desc Get new require
 // @access Private
@@ -467,6 +436,37 @@ router.get('/new', authorizeUser, async (req, res) => {
     res.json({ success: true, data: requires });
   } catch (error) {
     console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/require/:id
+// @desc Get require by id
+// @access Private
+router.get('/details/:id', authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const requireId = req.params.id;
+
+  try {
+    const queries = {
+      $and: [
+        {
+          $or: [
+            { author: new Types.ObjectId(userId) },
+            { 'to.info': new Types.ObjectId(userId) },
+          ],
+        },
+        { _id: new Types.ObjectId(requireId) },
+      ],
+    };
+
+    const require = await getRequireWithQuery(queries);
+
+    res.json({ success: true, data: require[0] });
+  } catch (error) {
+    console.error(error);
     return res
       .status(500)
       .json({ success: false, message: 'Internal Server Error' });

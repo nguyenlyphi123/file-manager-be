@@ -11,6 +11,7 @@ const Require = require('../models/Require');
 const { DescFolderSize } = require('../helpers/FolderHelper');
 const { fileResponseEx } = require('../types/file');
 const { getFileWithQuery } = require('../controllers/file');
+const { isAuthor } = require('../helpers/AuthHelper');
 
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
@@ -247,6 +248,7 @@ router.post('/delete', authorizeUser, async (req, res) => {
     }
 
     await File.deleteOne(params);
+
     if (fileData.parent_folder) {
       const updateFolderPromise = Folder.findByIdAndUpdate(
         fileData.parent_folder._id,
@@ -264,7 +266,10 @@ router.post('/delete', authorizeUser, async (req, res) => {
       await Promise.all([updateFolderPromise, descFolderSizePromise]);
     }
 
-    if (fileData.parent_folder.isRequireFolder) {
+    if (
+      fileData.parent_folder.isRequireFolder &&
+      !isAuthor(userId, fileData.parent_folder.owner)
+    ) {
       await Require.findOne({
         folder: fileData.parent_folder._id,
       })
@@ -321,11 +326,20 @@ router.post('/multiple-delete', authorizeUser, async (req, res) => {
     const promises = files.map(async (file) => {
       await File.deleteOne({ _id: file._id, author: userId });
       if (file.parent_folder) {
-        await Folder.findByIdAndUpdate(file.parent_folder, {
-          $pull: { files: file._id },
-          $inc: { size: -file.size },
-          $set: { modifiedAt: Date.now() },
-        });
+        const updateFolderPromise = Folder.findByIdAndUpdate(
+          fileData.parent_folder._id,
+          {
+            $pull: { files: fileData._id },
+            $set: { modifiedAt: Date.now() },
+          },
+        );
+
+        const descFolderSizePromise = DescFolderSize(
+          fileData.parent_folder._id,
+          fileData.size,
+        );
+
+        await Promise.all([updateFolderPromise, descFolderSizePromise]);
       }
 
       const fileName = file.name.split(' ')[0];

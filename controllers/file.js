@@ -11,6 +11,14 @@ const getFileWithQuery = async (q) => {
     },
     {
       $lookup: {
+        from: 'folders',
+        localField: 'parent_folder',
+        foreignField: '_id',
+        as: 'parent_folder',
+      },
+    },
+    {
+      $lookup: {
         from: 'accounts',
         localField: 'author',
         foreignField: '_id',
@@ -23,6 +31,12 @@ const getFileWithQuery = async (q) => {
         localField: 'owner',
         foreignField: '_id',
         as: 'owner',
+      },
+    },
+    {
+      $unwind: {
+        path: '$parent_folder',
+        preserveNullAndEmptyArrays: true,
       },
     },
     {

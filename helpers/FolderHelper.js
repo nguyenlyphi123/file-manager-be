@@ -17,6 +17,7 @@ const DescFolderSize = async (folderId, size) => {
   const currentFolder = await Folder.findById(folderId);
 
   currentFolder.size -= size;
+
   await currentFolder.save();
 
   if (currentFolder.parent_folder) {
