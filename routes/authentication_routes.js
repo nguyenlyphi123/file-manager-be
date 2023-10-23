@@ -83,6 +83,8 @@ router.get('/', authorizeUser, async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Account not found' });
 
+    console.log(accountExists);
+
     const accountData = {
       id: accountExists[0]._id,
       permission: accountExists[0].permission,
@@ -351,6 +353,9 @@ router.get(
         email,
       });
       await accountInfo.save();
+
+      account.info = accountInfo._id;
+      account.save();
 
       data = {
         id: account._id.toString(),
