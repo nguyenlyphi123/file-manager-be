@@ -337,6 +337,64 @@ router.put('/:id', authorizeUser, async (req, res) => {
   }
 });
 
+// @route DELETE api/require/:id
+// @desc Delete require by id
+// @access Private
+router.delete('/:id', authorizeUser, async (req, res) => {
+  const requireId = req.params.id;
+  const userId = req.data.id;
+
+  try {
+    const require = await Require.findById(requireId);
+
+    if (!require) {
+      return res.status(404).json({
+        success: false,
+        message: 'Require not found',
+      });
+    }
+
+    if (!isAuthor(require.author, userId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have not permission to delete this require',
+      });
+    }
+
+    const removedMember = require.to.map((i) => i.info.toString());
+
+    removedMember.push(require.author.toString());
+
+    const promises = [
+      Require.deleteOne({ _id: requireId }),
+      RequireOrder.updateMany(
+        { uid: { $in: removedMember } },
+        {
+          $pull: {
+            waiting: requireId,
+            processing: requireId,
+            done: requireId,
+            cancel: requireId,
+          },
+        },
+      ),
+    ];
+
+    await Promise.all(promises);
+
+    res.json({
+      success: true,
+      message: 'Delete require successfully',
+      data: require,
+    });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route GET api/require
 // @desc Get all require
 // @access Private

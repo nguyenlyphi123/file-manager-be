@@ -2,11 +2,14 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const argon2 = require('argon2');
+const passport = require('passport');
 
 const { authorizeUser } = require('../middlewares/authorization');
 
 const Account = require('../models/Account');
 const Information = require('../models/Information');
+const { getAuth } = require('../controllers/auth');
+const { Types } = require('mongoose');
 
 let refreshTokens = [];
 
@@ -72,20 +75,19 @@ router.post('/refresh-token', (req, res) => {
 // @access private
 router.get('/', authorizeUser, async (req, res) => {
   try {
-    const accountExists = await Account.findById(req.data.id)
-      .select('-password')
-      .populate('info');
+    const queries = { _id: new Types.ObjectId(req.data.id) };
+    const accountExists = await getAuth(queries);
 
-    if (!accountExists)
+    if (!accountExists.length === 0)
       return res
         .status(400)
         .json({ success: false, message: 'Account not found' });
 
     const accountData = {
-      id: accountExists._id,
-      permission: accountExists.permission,
-      name: accountExists.info.name,
-      email: accountExists.info.email,
+      id: accountExists[0]._id,
+      permission: accountExists[0].permission,
+      name: accountExists[0].info.name,
+      email: accountExists[0].info.email,
     };
 
     if (
@@ -307,5 +309,90 @@ router.post('/register', async (req, res) => {
       .json({ success: false, message: 'Internal Server Error' });
   }
 });
+
+// google login
+router.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: 'http://localhost:9000/api/authentication/google/failure',
+  }),
+  async (req, res) => {
+    const email = req.user._json.email;
+    const accountData = await Information.findOne({ email }).populate(
+      'account_id',
+      'username permission _id',
+    );
+
+    let data;
+    let accessToken;
+    let refreshToken;
+
+    if (accountData) {
+      data = {
+        id: accountData.account_id._id.toString(),
+        permission: accountData.account_id.permission,
+        name: accountData.name,
+        email,
+      };
+    } else {
+      const hashedPassword = await argon2.hash(
+        Math.random().toString(36).substring(2, 15),
+      );
+      const account = new Account({
+        username: email,
+        password: hashedPassword,
+        permission: 'PUPIL',
+      });
+      await account.save();
+
+      const accountInfo = new Information({
+        account_id: account._id,
+        name: req.user._json.name,
+        email,
+      });
+      await accountInfo.save();
+
+      data = {
+        id: account._id.toString(),
+        permission: account.permission,
+        name: accountInfo.name,
+        email: accountInfo.email,
+      };
+    }
+
+    accessToken = jwt.sign(data, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: '1h',
+    });
+    refreshToken = jwt.sign(data, process.env.REFRESH_TOKEN_SECRET, {
+      expiresIn: '5h',
+    });
+
+    refreshTokens.push(refreshToken);
+
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: 'none',
+      secure: true,
+    };
+
+    res.cookie('accessToken', accessToken, cookieOptions);
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    res.redirect(
+      process.env.NODE_ENV === 'production'
+        ? 'https://file-manager-fe.vercel.app'
+        : 'http://localhost:3000',
+    );
+  },
+);
+
+router.get('/google/failure', (req, res) => {
+  res.status(401).json({ success: false, message: 'Login failed' });
+});
+
+router.get(
+  '/google',
+  passport.authenticate('google', { scope: ['profile', 'email'] }),
+);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const { informationPopulateEx } = require('./information');
 
-const authorPopulateEx = {
+const userPopulateEx = {
   username: 0,
   password: 0,
   __v: 0,
@@ -11,6 +11,10 @@ const authorPopulateEx = {
   },
 };
 
+const authorPopulateEx = {
+  ...userPopulateEx,
+};
+
 const ownerPopulateEx = {
   ...authorPopulateEx,
 };
@@ -18,4 +22,5 @@ const ownerPopulateEx = {
 module.exports = {
   authorPopulateEx,
   ownerPopulateEx,
+  userPopulateEx,
 };

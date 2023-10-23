@@ -2,6 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const passport = require('passport');
+const session = require('express-session');
+require('./passport');
 
 require('dotenv').config();
 
@@ -54,6 +57,11 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.use(
+  session({ secret: 'keyboard cat', resave: true, saveUninitialized: true }),
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use('/api/major', majorRouter);
 app.use('/api/specialization', specializationRouter);

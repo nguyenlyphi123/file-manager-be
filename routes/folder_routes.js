@@ -5,8 +5,7 @@ const { Types } = require('mongoose');
 const Folder = require('../models/Folder');
 const File = require('../models/File');
 const authorization = require('../middlewares/authorization');
-const { IncFolderSize } = require('../helpers/FolderHelper');
-const { folderResponseEx } = require('../types/folder');
+const { IncFolderSize, GenFolderLocation } = require('../helpers/FolderHelper');
 const { getFolderWithQuery } = require('../controllers/folder');
 
 // @route POST api/folder
@@ -298,7 +297,7 @@ router.post('/delete', authorization.authorizeUser, async (req, res) => {
       await Promise.all(
         filesToDelete.map(async (fileData) => {
           const gcFileName = `${fileData.name}_${userId}`;
-          await gcDeleteFile(gcFileName);
+          return gcDeleteFile(gcFileName);
         }),
       );
     }
@@ -376,7 +375,7 @@ router.post(
         await Promise.all(
           filesToDelete.map(async (fileData) => {
             const gcFileName = `${fileData.name}_${userId}`;
-            await gcDeleteFile(gcFileName);
+            return gcDeleteFile(gcFileName);
           }),
         );
       }
@@ -504,7 +503,7 @@ router.put(
       // Restore all folders using Promise.all
       const promises = folderRestoreArray.map(async (id) => {
         try {
-          await Folder.findByIdAndUpdate(
+          return Folder.findByIdAndUpdate(
             id,
             { isDelete: false, modifiedAt: Date.now() },
             { new: true },
@@ -780,7 +779,7 @@ router.put(
       // Delete all folders using Promise.all
       const promises = folderDeleteArray.map(async (id) => {
         try {
-          await Folder.findByIdAndUpdate(
+          return Folder.findByIdAndUpdate(
             id,
             { isDelete: true, modifiedAt: Date.now() },
             { new: true },
@@ -819,18 +818,28 @@ router.get(
         parent_folder: new Types.ObjectId(folderId),
         isDelete: false,
       };
-      const folderData = await getFolderWithQuery(queries);
+      const folderData = getFolderWithQuery(queries);
 
-      const updateFolder = await Folder.findOneAndUpdate(
+      const updateFolder = Folder.findOneAndUpdate(
         { _id: folderId },
         { lastOpened: Date.now() },
       );
 
-      const data = await Promise.all([folderData, updateFolder]);
+      const folderLocation = GenFolderLocation(folderId);
+
+      const data = await Promise.all([
+        folderData,
+        updateFolder,
+        folderLocation,
+      ]);
 
       const folders = data[0];
+      const location = [
+        ...data[2].reverse(),
+        { _id: data[1]._id, name: data[1].name },
+      ];
 
-      res.json({ success: true, data: folders });
+      res.json({ success: true, data: folders, location: location });
     } catch (error) {
       console.log(error);
       return res

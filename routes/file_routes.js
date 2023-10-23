@@ -515,7 +515,7 @@ router.put('/multiple-unstar', authorizeUser, async (req, res) => {
 
   try {
     const promises = files.map(async (file) => {
-      return await File.findOneAndUpdate(
+      return File.findOneAndUpdate(
         { _id: file._id, author: userId },
         { isStar: false },
       );
@@ -648,7 +648,7 @@ router.put('/multiple-restore', authorizeUser, async (req, res) => {
 
   try {
     const promises = files.map(async (file) => {
-      return await File.updateOne(
+      return File.updateOne(
         { _id: file._id, author: userId },
         { isDelete: false },
       );
