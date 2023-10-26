@@ -10,10 +10,12 @@ const { authorizeUser } = require('../middlewares/authorization');
 const Account = require('../models/Account');
 const Information = require('../models/Information');
 const { getAuth, getInfomation } = require('../controllers/auth');
+const { sendMail } = require('../controllers/mail');
+const { origin } = require('../config/origin');
 
 let refreshTokens = [];
 
-// @route POST api/authorization/token
+// @route POST api/authentication/token
 // @desc Create new accessToken for all user
 // @access Public
 router.post('/refresh-token', (req, res) => {
@@ -71,7 +73,7 @@ router.post('/refresh-token', (req, res) => {
   });
 });
 
-// @route GET api/authorization
+// @route GET api/authentication
 // @desc Check if user logged in
 // @access private
 router.get('/', authorizeUser, async (req, res) => {
@@ -142,7 +144,7 @@ router.get('/', authorizeUser, async (req, res) => {
   }
 });
 
-// @route POST api/authorization/lecturers/login
+// @route POST api/authentication/lecturers/login
 // @desc Login account for lecturers
 // @access Public
 router.post('/login', async (req, res) => {
@@ -235,7 +237,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// @route POST api/authorization/logout
+// @route POST api/authentication/logout
 // @desc Logout for all user
 // @access Public
 router.post('/logout', (req, res) => {
@@ -314,7 +316,7 @@ router.post('/register', async (req, res) => {
 });
 
 // google login
-// @route GET api/authorization/google/callback
+// @route GET api/authentication/google/callback
 // @desc callback from google consent screen
 // @access Public
 router.get(
@@ -393,22 +395,18 @@ router.get(
     res.cookie('accessToken', accessToken, cookieOptions);
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
-    res.redirect(
-      process.env.NODE_ENV === 'production'
-        ? 'https://file-manager-fe.vercel.app'
-        : 'http://localhost:3000',
-    );
+    res.redirect(origin);
   },
 );
 
-// @route GET api/authorization/google/failure
+// @route GET api/authentication/google/failure
 // @desc do something when login failed
 // @access Public
 router.get('/google/failure', (req, res) => {
   res.status(401).json({ success: false, message: 'Login failed' });
 });
 
-// @route GET api/authorization/google
+// @route GET api/authentication/google
 // @desc navigate to google consent screen
 // @access Public
 router.get(

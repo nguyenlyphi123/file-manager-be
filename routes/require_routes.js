@@ -15,15 +15,15 @@ const {
   sortByOrder,
 } = require('../helpers/RequireHelper');
 const { getRequireWithQuery } = require('../controllers/require');
+const { sendMail } = require('../controllers/mail');
 
 // @route POST api/require
 // @desc Create new require
 // @access Private
 router.post('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const { id: userId, name: userName, email: userEmail } = req.data;
 
   const {
-    author,
     title,
     to,
     folder,
@@ -46,9 +46,16 @@ router.post('/', authorizeUser, async (req, res) => {
 
     const receiverEmails = [...to.map((item) => item.email)];
 
+    const gmailReceivers = [
+      ...to.map((item) => ({
+        name: item.name,
+        email: item.email,
+      })),
+    ];
+
     const member = to.map((item) => {
       return {
-        info: item.account_id,
+        info: item._id,
         sent: false,
         seen: false,
       };
@@ -70,8 +77,6 @@ router.post('/', authorizeUser, async (req, res) => {
       owner: folder.owner ? folder.owner : userId,
     });
 
-    await newFolder.save();
-
     let createRequire = new Require({
       title,
       author: userId,
@@ -86,21 +91,39 @@ router.post('/', authorizeUser, async (req, res) => {
       endDate,
     });
 
-    await createRequire.save();
+    await Promise.all([
+      newFolder.save(),
+      createRequire.save(),
+      Promise.all(
+        receiverIds.map(async (receiverId) => {
+          const existingDoc = await RequireOrder.findOne({ uid: receiverId });
 
-    await RequireOrder.updateMany(
-      {
-        uid: { $in: receiverIds },
-      },
-      { $push: { waiting: createRequire._id } },
-    );
+          if (existingDoc) {
+            await RequireOrder.updateOne(
+              { uid: receiverId },
+              { $push: { waiting: createRequire._id } },
+            );
+          } else {
+            await new RequireOrder({
+              uid: receiverId,
+              waiting: [createRequire._id],
+              processing: [],
+              done: [],
+              cancel: [],
+            }).save();
+          }
+        }),
+      ),
+    ]);
+
+    sendMail(userName, gmailReceivers, title, message, note);
 
     res.json({
       success: true,
       message: 'Create require successfully',
       data: {
         ...createRequire._doc,
-        author: { name: author.name, email: author.email },
+        author: { name: userName, email: userEmail },
       },
     });
   } catch (error) {
