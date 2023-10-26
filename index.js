@@ -43,6 +43,8 @@ connectDB();
 
 const app = express();
 
+console.log(process.env.ORIGIN);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
