@@ -10,8 +10,6 @@ const { authorizeUser } = require('../middlewares/authorization');
 const Account = require('../models/Account');
 const Information = require('../models/Information');
 const { getAuth, getInfomation } = require('../controllers/auth');
-const { sendMail } = require('../controllers/mail');
-const { origin } = require('../config/origin');
 
 let refreshTokens = [];
 
@@ -395,7 +393,7 @@ router.get(
     res.cookie('accessToken', accessToken, cookieOptions);
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
-    res.redirect(origin);
+    res.redirect(process.env.ORIGIN);
   },
 );
 

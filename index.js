@@ -8,8 +8,6 @@ require('./passport');
 
 require('dotenv').config();
 
-const { origin } = require('./config/origin');
-
 const majorRouter = require('./routes/major_routes');
 const specializationRouter = require('./routes/specialization_routes');
 const authenticationRouter = require('./routes/authentication_routes');
@@ -49,7 +47,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: origin,
+    origin: process.env.ORIGIN,
     credentials: true,
   }),
 );
@@ -80,7 +78,7 @@ const server = app.listen(process.env.PORT, () =>
 
 const io = require('socket.io')(server, {
   cors: {
-    origin: origin,
+    origin: process.env.ORIGIN,
     credentials: true,
   },
 });

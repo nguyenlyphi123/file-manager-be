@@ -28,3 +28,8 @@ vi.json
 
 serviceAccountKey.json
 
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
