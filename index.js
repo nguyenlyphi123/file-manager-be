@@ -8,6 +8,8 @@ require('./passport');
 
 require('dotenv').config();
 
+const { origin } = require('./config/origin');
+
 const majorRouter = require('./routes/major_routes');
 const specializationRouter = require('./routes/specialization_routes');
 const authenticationRouter = require('./routes/authentication_routes');
@@ -21,11 +23,6 @@ const chatRouter = require('./routes/chat_routes');
 const messageRouter = require('./routes/message_routes');
 const accountRouter = require('./routes/account_routes');
 const requireRouter = require('./routes/require_routes');
-
-const origin =
-  process.env.NODE_ENV === 'production'
-    ? 'https://file-manager-fe.vercel.app'
-    : 'http://localhost:3000';
 
 const connectDB = async () => {
   try {
