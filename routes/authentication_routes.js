@@ -3,13 +3,13 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const argon2 = require('argon2');
 const passport = require('passport');
+const { Types } = require('mongoose');
 
 const { authorizeUser } = require('../middlewares/authorization');
 
 const Account = require('../models/Account');
 const Information = require('../models/Information');
-const { getAuth } = require('../controllers/auth');
-const { Types } = require('mongoose');
+const { getAuth, getInfomation } = require('../controllers/auth');
 
 let refreshTokens = [];
 
@@ -36,6 +36,7 @@ router.post('/refresh-token', (req, res) => {
         permission: user.permission,
         name: user.name,
         email: user.email,
+        image: user.image,
       },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: '1h' },
@@ -83,13 +84,12 @@ router.get('/', authorizeUser, async (req, res) => {
         .status(400)
         .json({ success: false, message: 'Account not found' });
 
-    console.log(accountExists);
-
     const accountData = {
       id: accountExists[0]._id,
       permission: accountExists[0].permission,
       name: accountExists[0].info.name,
       email: accountExists[0].info.email,
+      image: accountExists[0].info.image,
     };
 
     if (
@@ -182,6 +182,7 @@ router.post('/login', async (req, res) => {
       permission: accountExists.permission,
       name: accountExists.info.name,
       email: accountExists.info.email,
+      image: accountExists.info.image,
     };
 
     if (
@@ -313,6 +314,9 @@ router.post('/register', async (req, res) => {
 });
 
 // google login
+// @route GET api/authorization/google/callback
+// @desc callback from google consent screen
+// @access Public
 router.get(
   '/google/callback',
   passport.authenticate('google', {
@@ -320,21 +324,25 @@ router.get(
   }),
   async (req, res) => {
     const email = req.user._json.email;
-    const accountData = await Information.findOne({ email }).populate(
-      'account_id',
-      'username permission _id',
-    );
+    const queries = { email };
+    const accountData = await getInfomation(queries);
 
     let data;
     let accessToken;
     let refreshToken;
 
-    if (accountData) {
+    if (accountData.length !== 0) {
+      if (req.user._json.picture && !accountData[0].image) {
+        accountData[0].image = req.user._json.picture;
+        await accountData[0].save();
+      }
+
       data = {
-        id: accountData.account_id._id.toString(),
-        permission: accountData.account_id.permission,
-        name: accountData.name,
+        id: accountData[0].account_id._id.toString(),
+        permission: accountData[0].account_id.permission,
+        name: accountData[0].name,
         email,
+        image: accountData[0].image,
       };
     } else {
       const hashedPassword = await argon2.hash(
@@ -351,6 +359,7 @@ router.get(
         account_id: account._id,
         name: req.user._json.name,
         email,
+        image: req.user._json.picture,
       });
       await accountInfo.save();
 
@@ -362,6 +371,7 @@ router.get(
         permission: account.permission,
         name: accountInfo.name,
         email: accountInfo.email,
+        image: accountInfo.image,
       };
     }
 
@@ -391,13 +401,22 @@ router.get(
   },
 );
 
+// @route GET api/authorization/google/failure
+// @desc do something when login failed
+// @access Public
 router.get('/google/failure', (req, res) => {
   res.status(401).json({ success: false, message: 'Login failed' });
 });
 
+// @route GET api/authorization/google
+// @desc navigate to google consent screen
+// @access Public
 router.get(
   '/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] }),
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    prompt: 'consent',
+  }),
 );
 
 module.exports = router;
