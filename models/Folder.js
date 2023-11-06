@@ -49,6 +49,10 @@ const FolderSchema = new Schema({
     type: Number,
     default: 0,
   },
+  quickAccess: {
+    type: Boolean,
+    default: false,
+  },
   isStar: {
     type: Boolean,
     default: false,

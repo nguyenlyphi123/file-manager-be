@@ -63,6 +63,62 @@ router.post('/', authorization.authorizeUser, async (req, res) => {
   }
 });
 
+// @route POST api/folder/quick-access
+// @desc Create new folder with quick access property
+// @access Private
+router.post('/', authorization.authorizeUser, async (req, res) => {
+  const { name, parent_folder, sub_folder, files } = req.body;
+  const author = req.data.id;
+
+  if (!name)
+    return res.status(400).json({
+      success: false,
+      message: 'Oops! It looks like some data of your request is missing',
+    });
+
+  try {
+    if (!author)
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized or token was expired',
+      });
+
+    const createFolder = new Folder({
+      name,
+      author,
+      parent_folder: parent_folder._id ? parent_folder._id : null,
+      owner: parent_folder.owner ? parent_folder.owner : author,
+      quickAccess: true,
+      sub_folder,
+      files,
+    });
+
+    await createFolder.save();
+
+    if (parent_folder._id) {
+      await Folder.updateOne(
+        { _id: parent_folder._id },
+        {
+          $push: { sub_folder: createFolder._id },
+          $inc: { size: createFolder.size ? createFolder.size : 0 },
+          $set: { modifiedAt: Date.now() },
+        },
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Folder has been created successfully',
+      data: createFolder,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route POST api/folder/copy
 // @desc Copy folder by folderId
 // @access Private
@@ -873,6 +929,38 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
       author: new Types.ObjectId(userId),
       parent_folder: null,
       isDelete: false,
+    };
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
+
+    res.json({ success: true, data: folders });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/folder/quick-access
+// @desc Get quick access folder by userId
+// @access Private
+router.get('/quick-access', authorization.authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
+  try {
+    const queries = {
+      author: new Types.ObjectId(userId),
+      parent_folder: null,
+      isDelete: false,
+      quickAccess: true,
     };
 
     const sort = { [sortKey]: -1 };
