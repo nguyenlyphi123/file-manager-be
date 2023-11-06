@@ -2,12 +2,23 @@ const File = require('../models/File');
 
 const { fileResponseEx } = require('../types/file');
 
-const getFileWithQuery = async (q) => {
+const getFileWithQuery = async (q, st, sk, l) => {
   const folders = await File.aggregate([
     {
       $match: {
         ...q,
       },
+    },
+    {
+      $sort: {
+        ...st,
+      },
+    },
+    {
+      $skip: sk,
+    },
+    {
+      $limit: l,
     },
     {
       $lookup: {

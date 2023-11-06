@@ -673,12 +673,20 @@ router.put('/multiple-restore', authorizeUser, async (req, res) => {
 router.get('/', authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       isDelete: false,
     };
-    const files = await getFileWithQuery(queries);
+
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: files });
   } catch (error) {
@@ -695,12 +703,19 @@ router.get('/', authorizeUser, async (req, res) => {
 router.get('/trash', authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       isDelete: true,
     };
-    const files = await getFileWithQuery(queries);
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
 
     if (!files)
       return res
@@ -721,12 +736,20 @@ router.get('/trash', authorizeUser, async (req, res) => {
 // @access Private
 router.get('/star', authorizeUser, async (req, res) => {
   const userId = req.data.id;
+
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       isStar: true,
     };
-    const files = await getFileWithQuery(queries);
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
 
     if (!files)
       return res
@@ -748,11 +771,18 @@ router.get('/star', authorizeUser, async (req, res) => {
 router.get('/shared', authorizeUser, async (req, res) => {
   const email = req.data.email;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       sharedTo: email,
     };
-    const files = await getFileWithQuery(queries);
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: files });
   } catch (error) {
@@ -769,13 +799,20 @@ router.get('/shared', authorizeUser, async (req, res) => {
 router.get('/:id', authorizeUser, async (req, res) => {
   const folderId = req.params.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       parent_folder: new Types.ObjectId(folderId),
       isDelete: false,
     };
 
-    const files = await getFileWithQuery(queries);
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: files });
   } catch (error) {

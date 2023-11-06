@@ -2,12 +2,23 @@ const Folder = require('../models/Folder');
 
 const { folderResponseEx } = require('../types/folder');
 
-const getFolderWithQuery = async (q) => {
+const getFolderWithQuery = async (q, st, sk, l) => {
   const folders = await Folder.aggregate([
     {
       $match: {
         ...q,
       },
+    },
+    {
+      $sort: {
+        ...st,
+      },
+    },
+    {
+      $skip: sk,
+    },
+    {
+      $limit: l,
     },
     {
       $lookup: {

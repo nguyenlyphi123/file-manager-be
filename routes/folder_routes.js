@@ -813,12 +813,20 @@ router.get(
   async (req, res) => {
     const folderId = req.params.folderId;
 
+    const limit = parseInt(req.query.limit) || 20;
+    const page = parseInt(req.query.page) || 1;
+    const skip = (page - 1) * limit;
+    const sortKey = req.query.sortKey || 'lastOpened';
+
     try {
       const queries = {
         parent_folder: new Types.ObjectId(folderId),
         isDelete: false,
       };
-      const folderData = getFolderWithQuery(queries);
+
+      const sort = { [sortKey]: -1 };
+
+      const folderData = await getFolderWithQuery(queries, sort, skip, limit);
 
       const updateFolder = Folder.findOneAndUpdate(
         { _id: folderId },
@@ -855,13 +863,21 @@ router.get(
 router.get('/', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       parent_folder: null,
       isDelete: false,
     };
-    const folders = await getFolderWithQuery(queries);
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -878,13 +894,21 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
 router.get('/starred', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       isStar: true,
       isDelete: false,
     };
-    const folders = await getFolderWithQuery(queries);
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -901,12 +925,20 @@ router.get('/starred', authorization.authorizeUser, async (req, res) => {
 router.get('/trash', authorization.authorizeUser, async (req, res) => {
   const userId = req.data.id;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       author: new Types.ObjectId(userId),
       isDelete: true,
     };
-    const folders = await getFolderWithQuery(queries);
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -947,11 +979,19 @@ const getFolderSize = async (folderId) => {
 router.get('/shared', authorization.authorizeUser, async (req, res) => {
   const email = req.data.email;
 
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
   try {
     const queries = {
       sharedTo: email,
     };
-    const folders = await getFolderWithQuery(queries);
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
 
     res.json({ success: true, data: folders });
   } catch (error) {
