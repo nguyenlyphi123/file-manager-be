@@ -860,6 +860,35 @@ router.put(
   },
 );
 
+// @route PUT api/folder/pin
+// @desc Pin folder by folderId
+// @access Private
+router.put('/:folderId/pin', authorization.authorizeUser, async (req, res) => {
+  const userId = req.data.id;
+  const folderId = req.params.folderId;
+  const { quickAccess } = req.body;
+
+  try {
+    await Folder.updateOne(
+      { _id: folderId, author: userId },
+      { quickAccess: quickAccess === undefined ? true : !quickAccess },
+      { new: true },
+    );
+
+    console.log(quickAccess);
+
+    res.json({
+      success: true,
+      message: 'Folder has been updated successfully',
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 // @route GET api/folder/:folderId/detail
 // @desc Get folder by folderId
 // @access Private

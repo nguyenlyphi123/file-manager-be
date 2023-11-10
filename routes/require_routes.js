@@ -7,6 +7,10 @@ const { authorizeUser } = require('../middlewares/authorization');
 const Require = require('../models/Require');
 const RequireOrder = require('../models/RequireOrder');
 const Folder = require('../models/Folder');
+
+const { getRequireWithQuery } = require('../controllers/require');
+const { sendMail } = require('../controllers/mail');
+
 const {
   isDone,
   getRequireStatusParams,
@@ -14,8 +18,6 @@ const {
   getMemberStatus,
   sortByOrder,
 } = require('../helpers/RequireHelper');
-const { getRequireWithQuery } = require('../controllers/require');
-const { sendMail } = require('../controllers/mail');
 
 // @route POST api/require
 // @desc Create new require
