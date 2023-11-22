@@ -393,7 +393,7 @@ const findAllSubFolder = async (rootFolderId, folderDeleteArray) => {
 
 const gcDeleteFile = async (fileName) => {
   try {
-    await bucket.file(fileName).delete();
+    await bucket.file(`files/${fileName}`).delete();
   } catch (error) {
     throw error;
   }

@@ -22,6 +22,7 @@ const messageRouter = require('./routes/message_routes');
 const accountRouter = require('./routes/account_routes');
 const requireRouter = require('./routes/require_routes');
 const searchRouter = require('./routes/search_routes');
+const informationRouter = require('./routes/information_routes');
 
 const connectDB = async () => {
   try {
@@ -73,6 +74,7 @@ app.use('/api/message', messageRouter);
 app.use('/api/account', accountRouter);
 app.use('/api/require', requireRouter);
 app.use('/api/search', searchRouter);
+app.use('/api/information', informationRouter);
 
 const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),

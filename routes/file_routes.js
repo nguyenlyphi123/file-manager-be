@@ -45,7 +45,6 @@ router.post('/', authorizeUser, async (req, res) => {
       link,
       owner: author,
     });
-    console.log(parent_folder);
 
     if (parent_folder) {
       const parentFolder = await Folder.findById(parent_folder);
@@ -309,7 +308,7 @@ router.post('/delete', authorizeUser, async (req, res) => {
 
 const gcDeleteFile = async (fileName) => {
   try {
-    await bucket.file(fileName).delete();
+    await bucket.file(`files/${fileName}`).delete();
   } catch (error) {
     throw error;
   }

@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 
 const { authorizeUser } = require('../middlewares/authorization');
-const Account = require('../models/Account');
 const Information = require('../models/Information');
 
 // @route GET api/account/:search

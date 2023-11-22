@@ -79,7 +79,7 @@ router.post(
         gcFileName = `${utf8Originalname}_${userId}_${parent_folder} (${newIndex})`;
       }
 
-      const uploadProcess = bucket.file(gcFileName);
+      const uploadProcess = bucket.file(`files/${gcFileName}`);
 
       const stream = uploadProcess.createWriteStream({
         metadata: {
@@ -165,12 +165,14 @@ router.post(
           );
 
           if (require) {
-            await require.updateStatus({
-              accountId: uploadedFile.author,
-              memStatus: process.env.REQ_STATUS_DONE,
-              reqStatus: process.env.REQ_STATUS_PROCESSING,
-            });
-            await require.updateIsSent(uploadedFile.author);
+            await Promise.all([
+              require.updateStatus({
+                accountId: userId,
+                memStatus: process.env.REQ_STATUS_DONE,
+                reqStatus: process.env.REQ_STATUS_PROCESSING,
+              }),
+              require.updateIsSent(userId),
+            ]);
           }
         }
 
@@ -228,9 +230,9 @@ router.post('/download', authorizeUser, async (req, res) => {
     }
 
     const fileName = `${fileData.name}_${userId}`;
-    const [file] = await bucket.file(fileName).download();
+    const [file] = await bucket.file(`files/${fileName}`).download();
 
-    const metadata = await bucket.file(fileName).getMetadata();
+    const metadata = await bucket.file(`files/${fileName}`).getMetadata();
 
     const contentType = metadata[0].contentType;
 
@@ -342,5 +344,56 @@ async function getAllFilesInSubFolders(folderId) {
 
   return folderData;
 }
+
+// @route POST api/gc/upload/image
+// @desc Upload image to Google Cloud Storage
+// @access Private
+router.post(
+  '/upload/image',
+  upload.single('image'),
+  authorizeUser,
+  async (req, res) => {
+    const image = req.file;
+    const uid = req.data.id;
+
+    try {
+      const splitedFileName = image?.originalname.split('.');
+      const fileName = `${splitedFileName[0]}_${uid}.${splitedFileName[1]}`;
+
+      const uploadProcess = bucket.file(`images/${fileName}`);
+
+      const stream = uploadProcess.createWriteStream({
+        metadata: {
+          contentType: image?.mimetype,
+        },
+      });
+
+      stream.on('error', (err) => {
+        console.log(err);
+        return res
+          .status(400)
+          .json({ success: false, message: 'Upload image failed' });
+      });
+
+      stream.on('finish', async () => {
+        uploadProcess.makePublic();
+        const url = await uploadProcess.publicUrl();
+
+        res.json({
+          success: true,
+          message: 'Upload image successfully',
+          data: { url },
+        });
+      });
+
+      stream.end(image.buffer);
+    } catch (error) {
+      console.log(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
+  },
+);
 
 module.exports = router;
