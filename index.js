@@ -1,12 +1,13 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const session = require('express-session');
-require('./passport');
 
 require('dotenv').config();
+
+require('./passport');
+require('./libs/connectDB')();
 
 const majorRouter = require('./routes/major_routes');
 const specializationRouter = require('./routes/specialization_routes');
@@ -23,25 +24,6 @@ const accountRouter = require('./routes/account_routes');
 const requireRouter = require('./routes/require_routes');
 const searchRouter = require('./routes/search_routes');
 const informationRouter = require('./routes/information_routes');
-
-const connectDB = async () => {
-  try {
-    mongoose.set('strictQuery', false);
-    await mongoose.connect(
-      `mongodb+srv://${process.env.DB_USER_NAME}:${process.env.DB_PASSWORD}@file-manager.ohju8rl.mongodb.net/?retryWrites=true&w=majority`,
-      {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      },
-    );
-    console.log('MongoDB connected');
-  } catch (error) {
-    console.log(error.message);
-    process.exit(1);
-  }
-};
-
-connectDB();
 
 const app = express();
 
@@ -80,70 +62,9 @@ const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),
 );
 
-const io = require('socket.io')(server, {
+require('./modules/socket')(server, {
   cors: {
     origin: process.env.ORIGIN,
     credentials: true,
   },
-});
-
-io.on('connection', (socket) => {
-  console.log('New client connected: ', socket.id);
-
-  let sender = null;
-
-  socket.on('setup', (data) => {
-    sender = data.id;
-    socket.join(data.id);
-    socket.emit('connected');
-  });
-
-  socket.on('join-room', (room) => {
-    socket.join(room);
-  });
-
-  socket.on('send-message', (message) => {
-    const { receiver } = message;
-
-    receiver.forEach((receive) => {
-      if (receive._id === sender) return;
-
-      socket.to(receive._id).emit('receive-message', message);
-    });
-  });
-
-  socket.on('typing', (room) => {
-    socket.to(room).emit('typing');
-  });
-
-  socket.on('stop-typing', (room) => {
-    socket.to(room).emit('stop-typing');
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Client disconnected');
-  });
-
-  socket.on('send-require', (require) => {
-    const { to, author, endDate, startDate, file_type, message, note, title } =
-      require;
-
-    if (!to) return;
-
-    const responseData = {
-      author,
-      endDate,
-      startDate,
-      file_type,
-      message,
-      note,
-      title,
-    };
-
-    const receiverIds = to.map((receiver) => receiver.info);
-
-    receiverIds.forEach((id) => {
-      socket.to(id).emit('receive-require', responseData);
-    });
-  });
 });
