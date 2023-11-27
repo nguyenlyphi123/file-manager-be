@@ -1,3 +1,27 @@
+const informationRes = {
+  _id: 1,
+  name: 1,
+  email: 1,
+  image: 1,
+  account_id: {
+    _id: 1,
+    username: 1,
+    permission: 1,
+  },
+  major: {
+    _id: 1,
+    name: 1,
+  },
+  specialization: {
+    _id: 1,
+    name: 1,
+  },
+  class: {
+    _id: 1,
+    name: 1,
+  },
+};
+
 const informationPopulateEx = {
   _id: 0,
   account_id: 0,
@@ -11,4 +35,5 @@ const informationPopulateEx = {
 
 module.exports = {
   informationPopulateEx,
+  informationRes,
 };

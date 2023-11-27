@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const { Types } = require('mongoose');
 
 const { authorizeUser } = require('../middlewares/authorization');
+const { getInformationWithQuery } = require('../controllers/information');
+
 const Information = require('../models/Information');
 
 // @route GET api/information
@@ -11,26 +14,11 @@ router.get('/', authorizeUser, async (req, res) => {
   const uid = req.data.id;
 
   try {
-    const information = await Information.findOne({ account_id: uid }).populate(
-      [
-        {
-          path: 'account_id',
-          select: 'username permission',
-        },
-        {
-          path: 'major',
-          select: 'name',
-        },
-        {
-          path: 'specialization',
-          select: 'name',
-        },
-        {
-          path: 'class',
-          select: 'name',
-        },
-      ],
-    );
+    const queries = {
+      account_id: new Types.ObjectId(uid),
+    };
+
+    const information = await getInformationWithQuery(queries);
 
     if (!information) {
       return res
