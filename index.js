@@ -8,6 +8,7 @@ require('dotenv').config();
 
 require('./passport');
 require('./libs/connectDB')();
+const socket = require('./modules/socket');
 
 const majorRouter = require('./routes/major_routes');
 const specializationRouter = require('./routes/specialization_routes');
@@ -62,7 +63,7 @@ const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),
 );
 
-require('./modules/socket')(server, {
+socket(server, {
   cors: {
     origin: process.env.ORIGIN,
     credentials: true,
