@@ -6,6 +6,12 @@ const { authorizeUser } = require('../middlewares/authorization');
 const { getInformationWithQuery } = require('../controllers/information');
 
 const Information = require('../models/Information');
+const {
+  setRedisValue,
+  getRedisValue,
+  delRedisValue,
+} = require('../modules/redis');
+const { REDIS_INFORMATION_KEY } = require('../constants/redisKey');
 
 // @route GET api/information
 // @desc Get user information
@@ -14,6 +20,14 @@ router.get('/', authorizeUser, async (req, res) => {
   const uid = req.data.id;
 
   try {
+    const cachedInformation = await getRedisValue(
+      `${REDIS_INFORMATION_KEY}:${uid}`,
+    );
+
+    if (cachedInformation) {
+      return res.json({ success: true, data: JSON.parse(cachedInformation) });
+    }
+
     const queries = {
       account_id: new Types.ObjectId(uid),
     };
@@ -25,6 +39,11 @@ router.get('/', authorizeUser, async (req, res) => {
         .status(404)
         .json({ success: false, message: 'Information not found' });
     }
+
+    setRedisValue(
+      `${REDIS_INFORMATION_KEY}:${uid}`,
+      JSON.stringify(information),
+    );
 
     res.json({ success: true, data: information });
   } catch (err) {
@@ -48,6 +67,8 @@ router.put('/', authorizeUser, async (req, res) => {
       { name, image },
       { new: true, returnOriginal: false },
     );
+
+    delRedisValue(`${REDIS_INFORMATION_KEY}:${uid}`);
 
     res.json({ success: true, data: information });
   } catch (error) {
