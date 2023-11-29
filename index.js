@@ -11,6 +11,7 @@ require('dotenv').config();
 require('./passport');
 require('./databases/init.mongodb');
 const socket = require('./modules/socket');
+const { NotFoundError, errorHandler } = require('./core/error.response');
 
 const app = express();
 
@@ -33,7 +34,13 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // routes
-app.use('/api', require('./routes'));
+app.use('/', require('./routes'));
+app.use((req, res, next) => {
+  const error = new Error('Not found');
+  error.status = 404;
+  next(error);
+});
+app.use(errorHandler);
 
 const server = app.listen(process.env.PORT, () =>
   console.log('Server started on port', process.env.PORT),
