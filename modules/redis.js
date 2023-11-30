@@ -1,29 +1,31 @@
 const client = require('../libs/redisClient');
 
-module.exports = {
-  setRedisValue: async (key, value) => {
-    return await client.set(key, value);
-  },
-  getRedisValue: async (key) => {
-    return await client.get(key);
-  },
-  delRedisValue: async (key) => {
-    return await client.del(key);
-  },
-  setRedisHashedValue: async (key, value) => {
-    const mapped = Object.entries(value).map(([key, value]) => [
-      key,
-      JSON.stringify(value),
-    ]);
+const exTime = parseInt(new Date().setHours(23, 59, 59, 999) / 1000);
 
-    return Promise.all(mapped.map(([k, v]) => client.hSet(key, k, v)));
-  },
-  getRedisHashedValue: async (key) => {
-    const hashedValue = await client.hGetAll(key);
+class RedisClient {
+  constructor() {
+    this.client = client;
+  }
 
-    return Object.entries(hashedValue).reduce((acc, [key, value]) => {
-      acc[key] = JSON.parse(value);
-      return acc;
-    }, {});
-  },
-};
+  async setValue(key, value) {
+    return await this.client.set(key, value, 'EX', exTime);
+  }
+
+  async getValue(key) {
+    return await this.client.get(key);
+  }
+
+  async delValue(key) {
+    return await this.client.del(key);
+  }
+
+  async delWithKeyMatchPrefix(prefix) {
+    const keysToDelete = await this.client.keys(`${prefix}:*`);
+
+    if (!keysToDelete.length) return;
+
+    return this.client.unlink(keysToDelete);
+  }
+}
+
+module.exports = new RedisClient();

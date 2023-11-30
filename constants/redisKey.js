@@ -3,4 +3,5 @@ module.exports = {
   REDIS_FILES_KEY: 'files',
   REDIS_FOLDERS_KEY: 'folders',
   REDIS_REQUIREMENTS_KEY: 'requirements',
+  REDIS_AUTH_KEY: 'auth',
 };
