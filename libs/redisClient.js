@@ -9,7 +9,7 @@ let redisClient = redis.createClient({
 // });
 
 redisClient.on('connect', function () {
-  console.log('Connected to redis instance');
+  console.log('Redis connected');
 });
 
 (async () => {
