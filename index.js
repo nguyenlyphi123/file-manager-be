@@ -11,7 +11,7 @@ require('dotenv').config();
 require('./passport');
 require('./databases/init.mongodb');
 const socket = require('./modules/socket');
-const { NotFoundError, errorHandler } = require('./core/error.response');
+const { errorHandler } = require('./core/error.response');
 
 const app = express();
 
