@@ -4,461 +4,74 @@ const { Types } = require('mongoose');
 
 const Folder = require('../models/Folder');
 const File = require('../models/File');
-const authorization = require('../middlewares/authorization');
-const { IncFolderSize, GenFolderLocation } = require('../helpers/FolderHelper');
-const { getFolderWithQuery } = require('../controllers/folder');
 
+const authorization = require('../middlewares/authorization');
+const { genFolderLocation } = require('../helpers/folder.helper');
+const { getFolderWithQuery } = require('../controllers/folder');
+const { REDIS_FOLDERS_KEY } = require('../constants/redisKey');
+const redisClient = require('../modules/redis');
+const folderController = require('../controllers/folder.controller');
+const asyncHandler = require('../middlewares/asyncHandler');
+const { findAllSubFolder } = require('../helpers/folder.helper');
 // @route POST api/folder
 // @desc Create new folder
 // @access Private
-router.post('/', authorization.authorizeUser, async (req, res) => {
-  const { name, parent_folder, sub_folder, files } = req.body;
-  const author = req.data.id;
-
-  if (!name)
-    return res.status(400).json({
-      success: false,
-      message: 'Oops! It looks like some data of your request is missing',
-    });
-
-  try {
-    if (!author)
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized or token was expired',
-      });
-
-    const createFolder = new Folder({
-      name,
-      author,
-      parent_folder: parent_folder._id ? parent_folder._id : null,
-      owner: parent_folder.owner ? parent_folder.owner : author,
-      sub_folder,
-      files,
-    });
-
-    await createFolder.save();
-
-    if (parent_folder._id) {
-      await Folder.updateOne(
-        { _id: parent_folder._id },
-        {
-          $push: { sub_folder: createFolder._id },
-          $inc: { size: createFolder.size ? createFolder.size : 0 },
-          $set: { modifiedAt: Date.now() },
-        },
-      );
-    }
-
-    res.json({
-      success: true,
-      message: 'Folder has been created successfully',
-      data: createFolder,
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
+router.post(
+  '/',
+  authorization.authorizeUser,
+  asyncHandler(folderController.createFolder),
+);
 
 // @route POST api/folder/quick-access
 // @desc Create new folder with quick access property
 // @access Private
-router.post('/', authorization.authorizeUser, async (req, res) => {
-  const { name, parent_folder, sub_folder, files } = req.body;
-  const author = req.data.id;
-
-  if (!name)
-    return res.status(400).json({
-      success: false,
-      message: 'Oops! It looks like some data of your request is missing',
-    });
-
-  try {
-    if (!author)
-      return res.status(403).json({
-        success: false,
-        message: 'You are not authorized or token was expired',
-      });
-
-    const createFolder = new Folder({
-      name,
-      author,
-      parent_folder: parent_folder._id ? parent_folder._id : null,
-      owner: parent_folder.owner ? parent_folder.owner : author,
-      quickAccess: true,
-      sub_folder,
-      files,
-    });
-
-    await createFolder.save();
-
-    if (parent_folder._id) {
-      await Folder.updateOne(
-        { _id: parent_folder._id },
-        {
-          $push: { sub_folder: createFolder._id },
-          $inc: { size: createFolder.size ? createFolder.size : 0 },
-          $set: { modifiedAt: Date.now() },
-        },
-      );
-    }
-
-    res.json({
-      success: true,
-      message: 'Folder has been created successfully',
-      data: createFolder,
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
+router.post(
+  '/quick-access',
+  authorization.authorizeUser,
+  asyncHandler(folderController.createAccessFolder),
+);
 
 // @route POST api/folder/copy
 // @desc Copy folder by folderId
 // @access Private
-router.post('/copy', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const { data, folderId } = req.body;
-
-  try {
-    if (
-      data.author._id !== userId &&
-      (!data.sharedTo.includes(email) ||
-        !data.permission.includes(process.env.PERMISSION_EDIT))
-    )
-      return res.status(400).json({
-        success: false,
-        message: 'You do not have permission to do this',
-      });
-
-    const {
-      _id,
-      sharedTo,
-      permission,
-      createAt,
-      modifiedAt,
-      lastOpened,
-      ...copyFolderData
-    } = data;
-
-    const copyFolder = new Folder({
-      ...copyFolderData,
-      author: userId,
-      isStar: false,
-      isDelete: false,
-    });
-
-    if (!folderId) {
-      copyFolder.parent_folder = null;
-
-      await copyFolder.save();
-      return res.json({
-        success: true,
-        message: 'Folder has been copied successfully',
-        data: copyFolder,
-      });
-    }
-
-    const newParentFolder = await Folder.findOne({
-      _id: folderId,
-      author: userId,
-    });
-
-    if (!newParentFolder)
-      return res
-        .status(404)
-        .json({ success: false, message: 'Destination folder not found' });
-
-    copyFolder.parent_folder = newParentFolder._id;
-    copyFolder.owner = newParentFolder.owner;
-
-    const copiedFolder = await copyFolder.save();
-    await Folder.updateOne(
-      { _id: folderId, author: userId },
-      {
-        $push: { sub_folder: copiedFolder._id },
-        $set: { modifiedAt: Date.now() },
-      },
-      { new: true },
-    );
-
-    await IncFolderSize(folderId, copiedFolder.size);
-
-    res.json({
-      status: true,
-      message: 'Folder has been copied successfully',
-      data: copyFolder,
-    });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
+router.post(
+  '/copy',
+  authorization.authorizeUser,
+  asyncHandler(folderController.copyFolder),
+);
 
 // @route POST api/folder/move
 // @desc Move folder by folderId
 // @access Private
-router.post('/move', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const { data, folderId } = req.body;
+router.post(
+  '/move',
+  authorization.authorizeUser,
+  asyncHandler(folderController.moveFolder),
+);
 
-  try {
-    if (data.author !== userId)
-      return res.status(400).json({
-        success: false,
-        message: 'You do not have permission to do this',
-      });
-
-    const bulkOps = [];
-
-    if (!folderId) {
-      // Remove folder from old parent folder and update new parent_folder
-      bulkOps.push(
-        {
-          updateOne: {
-            filter: { _id: data.parent_folder, author: userId },
-            update: {
-              $pull: { sub_folder: data._id },
-              $set: { modifiedAt: Date.now() },
-              $inc: { size: -data.size },
-            },
-          },
-        },
-        {
-          updateOne: {
-            filter: { _id: data._id, author: userId },
-            update: { parent_folder: null },
-          },
-        },
-      );
-    } else {
-      const newParentFolder = await Folder.findOne({
-        _id: folderId,
-        author: userId,
-      }).lean();
-
-      if (!newParentFolder)
-        return res
-          .status(404)
-          .json({ success: false, message: 'Destination folder not found' });
-
-      const oldParentFolderId = data.parent_folder;
-
-      if (oldParentFolderId) {
-        // Remove folder from old parent folder
-        bulkOps.push({
-          updateOne: {
-            filter: { _id: oldParentFolderId, author: userId },
-            update: {
-              $pull: { sub_folder: data._id },
-              $set: { modifiedAt: Date.now() },
-              $inc: { size: -data.size },
-            },
-          },
-        });
-      }
-
-      // Add folder to new parent folder and update new parent_folder
-      bulkOps.push(
-        {
-          updateOne: {
-            filter: { _id: folderId, author: userId },
-            update: {
-              $push: { sub_folder: data._id },
-              $set: { modifiedAt: Date.now() },
-              $inc: { size: data.size },
-            },
-          },
-        },
-        {
-          updateOne: {
-            filter: { _id: data._id, author: userId },
-            update: { parent_folder: folderId, owner: newParentFolder.owner },
-          },
-        },
-      );
-    }
-
-    if (bulkOps.length > 0) {
-      await Folder.bulkWrite(bulkOps);
-    }
-
-    res.json({
-      status: true,
-      message: 'Folder has been moved successfully',
-      data: data,
-    });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
-// @route DELETE api/folder/delete
+// @route POST api/folder/delete
 // @desc Delete folder by folderId
 // @access Private
-router.post('/delete', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const folderId = req.body.folderId;
-  const folderDeleteArray = [];
+router.post(
+  '/delete',
+  authorization.authorizeUser,
+  asyncHandler(folderController.deleteFolder),
+);
 
-  try {
-    // Find the folder to delete
-    const folderExists = await Folder.findOne({
-      _id: folderId,
-      author: userId,
-    });
-
-    if (!folderExists) {
-      return res.status(404).json({
-        success: false,
-        message:
-          'Folder does not exist or you do not have permission to delete it',
-      });
-    }
-
-    // Fetch the parent folder (if it exists) and update it
-    if (folderExists.parent_folder) {
-      await Folder.updateOne(
-        { _id: folderExists.parent_folder },
-        {
-          $pull: { sub_folder: folderExists._id },
-          $set: { modifiedAt: Date.now() },
-          $inc: { size: -folderExists.size },
-        },
-      );
-    }
-
-    // Populate the folderDeleteArray
-    folderDeleteArray.push(folderExists._id);
-    await findAllSubFolder(folderId, folderDeleteArray);
-
-    // Fetch files associated with the target folders
-    const filesToDelete = await File.find({
-      parent_folder: { $in: folderDeleteArray },
-    });
-
-    // Delete files from the Google Cloud Storage
-    if (filesToDelete.length > 0) {
-      await Promise.all(
-        filesToDelete.map(async (fileData) => {
-          const gcFileName = `${fileData.name}_${userId}`;
-          return gcDeleteFile(gcFileName);
-        }),
-      );
-    }
-
-    // Delete all folders and associated files using Promise.all
-    await Promise.all([
-      Folder.deleteMany({ _id: { $in: folderDeleteArray } }),
-      File.deleteMany({ parent_folder: { $in: folderDeleteArray } }),
-    ]);
-
-    return res.json({
-      success: true,
-      message: 'Folder and associated files have been deleted successfully',
-    });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(500)
-      .json({ success: false, message: 'Internal Server Error' });
-  }
-});
-
-const findAllSubFolder = async (rootFolderId, folderDeleteArray) => {
-  try {
-    const subFolders = await Folder.find({ parent_folder: rootFolderId });
-
-    if (subFolders.length > 0) {
-      for (const folder of subFolders) {
-        folderDeleteArray.push(folder._id);
-        await findAllSubFolder(folder._id, folderDeleteArray);
-      }
-    }
-  } catch (error) {
-    console.error(error);
-  }
-};
-
-const gcDeleteFile = async (fileName) => {
-  try {
-    await bucket.file(`files/${fileName}`).delete();
-  } catch (error) {
-    throw error;
-  }
-};
-
-// @route POST api/folder/mutiple-delete
+// @route POST api/folder/multiple-delete
 // @desc Delete multiple folders by folder list
 // @access Private
 router.post(
   '/multiple-delete',
   authorization.authorizeUser,
-  async (req, res) => {
-    const userId = req.data.id;
-    const folders = req.body.folders;
-    const folderIdsToDelete = folders.map((folder) => folder._id);
-
-    try {
-      const targetFolders = await Folder.find({
-        _id: { $in: folderIdsToDelete },
-        author: userId,
-      });
-
-      const allFolderIdsToDelete = [];
-
-      targetFolders.forEach((folder) => {
-        allFolderIdsToDelete.push(folder._id);
-        findAllSubFolder(folder._id, allFolderIdsToDelete);
-      });
-
-      const filesToDelete = await File.find({
-        parent_folder: { $in: allFolderIdsToDelete },
-      });
-
-      if (filesToDelete.length > 0) {
-        await Promise.all(
-          filesToDelete.map(async (fileData) => {
-            const gcFileName = `${fileData.name}_${userId}`;
-            return gcDeleteFile(gcFileName);
-          }),
-        );
-      }
-
-      await Promise.all([
-        Folder.deleteMany({ _id: { $in: allFolderIdsToDelete } }),
-        File.deleteMany({ parent_folder: { $in: allFolderIdsToDelete } }),
-      ]);
-
-      res.json({
-        success: true,
-        message: 'Folders and associated files have been deleted successfully',
-      });
-    } catch (error) {
-      console.log(error);
-      return res
-        .status(500)
-        .json({ success: false, message: 'Internal Server Error' });
-    }
-  },
+  asyncHandler(folderController.deleteMultipleFolder),
 );
 
 // @route POST api/folder/share
 // @desc Share folder by folderId to emails
 // @access Private
 router.post('/share', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { folderId, emails, permissions } = req.body;
 
   if (!folderId || !emails)
@@ -499,6 +112,8 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
         { new: true },
       );
 
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
       res.json({
         success: true,
         message: 'Folder has been shared successfully',
@@ -516,6 +131,8 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
       { new: true },
     );
 
+    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
     res.json({ success: true, message: 'Folder has been shared successfully' });
   } catch (error) {
     console.error(error);
@@ -532,7 +149,7 @@ router.put(
   '/:folderId/restore',
   authorization.authorizeUser,
   async (req, res) => {
-    const userId = req.data.id;
+    const userId = req.user.id;
     const folderId = req.params.folderId;
     const folderRestoreArray = [];
 
@@ -571,6 +188,8 @@ router.put(
 
       await Promise.all(promises);
 
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
       return res.json({
         success: true,
         message: 'Folder has been restored successfully',
@@ -591,7 +210,7 @@ router.post(
   '/multiple-restore',
   authorization.authorizeUser,
   async (req, res) => {
-    const userId = req.data.id;
+    const userId = req.user.id;
     const folders = req.body.folders;
     const folderIdsToRestore = folders.map((folder) => folder._id);
 
@@ -601,6 +220,8 @@ router.post(
         { isDelete: false, modifiedAt: Date.now() },
         { new: true },
       );
+
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       res.json({
         success: true,
@@ -620,8 +241,8 @@ router.post(
 // @access Private
 router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
   const folderId = req.params.folderId;
-  const userId = req.data.id;
-  const email = req.data.email;
+  const userId = req.user.id;
+  const email = req.user.email;
 
   const { name, parent_folder } = req.body;
 
@@ -641,6 +262,9 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
         });
       } else {
         await Folder.updateOne({ _id: folderId }, { name });
+
+        redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
         return res.json({
           success: true,
           message: 'Folder has been updated successfully',
@@ -681,6 +305,8 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
       );
     }
 
+    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
     res.json({
       success: true,
       message: 'Folder has been updated successfully',
@@ -697,7 +323,7 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
 // @desc Star folder by folderId
 // @access Private
 router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const folderId = req.params.folderId;
 
   try {
@@ -712,6 +338,8 @@ router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
         success: false,
         message: 'You do not have permission to do this',
       });
+
+    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     return res.json({
       success: true,
@@ -729,7 +357,7 @@ router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
 // @desc Unstar folder by folderId
 // @access Private
 router.put('/unstar/single', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const folderId = req.body.folderId;
 
   try {
@@ -745,6 +373,8 @@ router.put('/unstar/single', authorization.authorizeUser, async (req, res) => {
         message: 'You do not have permission to do this',
       });
     }
+
+    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     return res.json({
       success: true,
@@ -765,7 +395,7 @@ router.put(
   '/unstar/list-folder',
   authorization.authorizeUser,
   async (req, res) => {
-    const userId = req.data.id;
+    const userId = req.user.id;
     const folderIdList = req.body.folderIdList;
 
     try {
@@ -774,6 +404,8 @@ router.put(
         { isStar: false },
         { new: true },
       );
+
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       return res.json({
         success: true,
@@ -795,8 +427,8 @@ router.put(
   '/:folderId/trash',
   authorization.authorizeUser,
   async (req, res) => {
-    const userId = req.data.id;
-    const email = req.data.email;
+    const userId = req.user.id;
+    const email = req.user.email;
     const folderId = req.params.folderId;
     const folderDeleteArray = [];
 
@@ -814,6 +446,8 @@ router.put(
           { _id: folderId },
           { $pull: { sharedTo: email } },
         );
+
+        redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
         return res.json({
           success: true,
@@ -847,6 +481,8 @@ router.put(
 
       await Promise.all(promises);
 
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+
       return res.json({
         success: true,
         message: 'Folder has been deleted successfully',
@@ -864,7 +500,7 @@ router.put(
 // @desc Pin folder by folderId
 // @access Private
 router.put('/:folderId/pin', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const folderId = req.params.folderId;
   const { quickAccess } = req.body;
 
@@ -875,7 +511,7 @@ router.put('/:folderId/pin', authorization.authorizeUser, async (req, res) => {
       { new: true },
     );
 
-    console.log(quickAccess);
+    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     res.json({
       success: true,
@@ -918,7 +554,7 @@ router.get(
         { lastOpened: Date.now() },
       );
 
-      const folderLocation = GenFolderLocation(folderId);
+      const folderLocation = genFolderLocation(folderId);
 
       const data = await Promise.all([
         folderData,
@@ -946,7 +582,7 @@ router.get(
 // @desc Get folder by userId
 // @access Private
 router.get('/', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -954,6 +590,14 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
   const sortKey = req.query.sortKey || 'lastOpened';
 
   try {
+    const cachedFolders = await redisClient.getValue(
+      `${REDIS_FOLDERS_KEY}:${userId}:${page}`,
+    );
+
+    if (cachedFolders) {
+      return res.json({ success: true, data: JSON.parse(cachedFolders) });
+    }
+
     const queries = {
       author: new Types.ObjectId(userId),
       parent_folder: null,
@@ -963,6 +607,11 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
     const sort = { [sortKey]: -1 };
 
     const folders = await getFolderWithQuery(queries, sort, skip, limit);
+
+    redisClient.setValue(
+      `${REDIS_FOLDERS_KEY}:${userId}:${page}`,
+      JSON.stringify(folders),
+    );
 
     res.json({ success: true, data: folders });
   } catch (error) {
@@ -977,7 +626,7 @@ router.get('/', authorization.authorizeUser, async (req, res) => {
 // @desc Get quick access folder by userId
 // @access Private
 router.get('/quick-access', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -1009,7 +658,7 @@ router.get('/quick-access', authorization.authorizeUser, async (req, res) => {
 // @desc Get folder that was starred by folderId
 // @access Private
 router.get('/starred', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -1040,7 +689,7 @@ router.get('/starred', authorization.authorizeUser, async (req, res) => {
 // @desc Get folder that was deleted by folderId
 // @access Private
 router.get('/trash', authorization.authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -1094,7 +743,7 @@ const getFolderSize = async (folderId) => {
 // @desc Get folder that was shared by email
 // @access Private
 router.get('/shared', authorization.authorizeUser, async (req, res) => {
-  const email = req.data.email;
+  const email = req.user.email;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
