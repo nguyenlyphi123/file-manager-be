@@ -10,7 +10,7 @@ const Folder = require('../models/Folder');
 const File = require('../models/File');
 const Require = require('../models/Require');
 const RequireOrder = require('../models/RequireOrder');
-const { IncFolderSize } = require('../helpers/FolderHelper');
+const { incFolderSize } = require('../helpers/folder.helper');
 const { isAuthor } = require('../helpers/AuthHelper');
 
 const router = express.Router();
@@ -30,7 +30,7 @@ router.post(
     try {
       const file = req.file;
       const parent_folder = req.body.folderId;
-      const userId = req.data.id;
+      const userId = req.user.id;
 
       if (!file) {
         return res.status(400).json({
@@ -136,7 +136,7 @@ router.post(
             },
           );
 
-          const incFolderSizePromise = IncFolderSize(
+          const incFolderSizePromise = incFolderSize(
             uploadedFile.parent_folder._id,
             uploadedFile.size,
           );
@@ -210,9 +210,9 @@ const countExistsFile = async (existsFile) => {
 // @desc Download file from Google Cloud Storage
 // @access Private
 router.post('/download', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const fileData = req.body.data;
-  const email = req.data.email;
+  const email = req.user.email;
 
   try {
     const fileExists = await File.findOne({ name: fileData.name });
@@ -255,8 +255,8 @@ router.post('/download', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/folder/download', authorizeUser, async (req, res) => {
   const folderId = req.body.id;
-  const userId = req.data.id;
-  const email = req.data.email;
+  const userId = req.user.id;
+  const email = req.user.email;
 
   try {
     const folder = await Folder.findById(folderId);
@@ -354,7 +354,7 @@ router.post(
   authorizeUser,
   async (req, res) => {
     const image = req.file;
-    const uid = req.data.id;
+    const uid = req.user.id;
 
     try {
       const splitedFileName = image?.originalname.split('.');
