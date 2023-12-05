@@ -10,7 +10,7 @@ const Folder = require('../models/Folder');
 // @desc search folder and file by name
 // @access Private
 router.get('/', authorizeUser, async (req, res) => {
-  const uid = req.data.id;
+  const uid = req.user.id;
   const name = req.query.name;
   const type = req.query.type;
   const action = req.query.action;

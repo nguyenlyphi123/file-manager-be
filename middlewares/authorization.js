@@ -2,8 +2,6 @@ const jwt = require('jsonwebtoken');
 
 const authorization = {
   authorizeUser: (req, res, next) => {
-    // const authHeader = req.header('Authorization');
-
     const token = req.cookies.accessToken;
 
     if (!token)
@@ -16,7 +14,7 @@ const authorization = {
             .status(403)
             .json({ message: 'Invalid token or token was expired' });
 
-        req.data = data;
+        req.user = data;
         next();
       });
     } catch (error) {
@@ -26,24 +24,24 @@ const authorization = {
 
   authorizeLecturers: (req, res, next) => {
     this.authorizeUser(req, res, () => {
-      if (!req.data.permission === process.env.PERMISSION_LECTURERS)
+      if (!req.user.permission === process.env.PERMISSION_LECTURERS)
         return res
           .status(403)
           .json({ message: 'You are not authorized to do this' });
 
-      req.data = data;
+      req.user = data;
       next();
     });
   },
 
   authorizeManager: (req, res, next) => {
     this.authorizeUser(req, res, () => {
-      if (!req.data.permission === process.env.PERMISSION_MANAGER)
+      if (!req.user.permission === process.env.PERMISSION_MANAGER)
         return res
           .status(403)
           .json({ message: 'You are not authorized to do this' });
 
-      req.data = data;
+      req.user = data;
       next();
     });
   },

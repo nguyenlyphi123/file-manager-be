@@ -23,7 +23,7 @@ const {
 // @desc Create new require
 // @access Private
 router.post('/', authorizeUser, async (req, res) => {
-  const { id: userId, name: userName, email: userEmail } = req.data;
+  const { id: userId, name: userName, email: userEmail } = req.user;
 
   const {
     title,
@@ -140,7 +140,7 @@ router.post('/', authorizeUser, async (req, res) => {
 // @desc Update status of require
 // @access Private
 router.put('/status', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { source, destination, requireId } = req.body;
 
   try {
@@ -251,7 +251,7 @@ async function updateRequireOrder(
 // @desc Update require by id
 // @access Private
 router.put('/:id', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const requireId = req.params.id;
 
   const {
@@ -367,7 +367,7 @@ router.put('/:id', authorizeUser, async (req, res) => {
 // @access Private
 router.delete('/:id', authorizeUser, async (req, res) => {
   const requireId = req.params.id;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const require = await Require.findById(requireId);
@@ -425,7 +425,7 @@ router.delete('/:id', authorizeUser, async (req, res) => {
 // @access Private
 router.get('/', authorizeUser, async (req, res) => {
   try {
-    const userId = req.data.id;
+    const userId = req.user.id;
 
     const queries = {
       $or: [
@@ -497,7 +497,7 @@ router.get('/', authorizeUser, async (req, res) => {
 // @desc Get new require
 // @access Private
 router.get('/new', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const queries = {
@@ -529,7 +529,7 @@ router.get('/new', authorizeUser, async (req, res) => {
 // @desc Get require by id
 // @access Private
 router.get('/details/:id', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const requireId = req.params.id;
 
   try {

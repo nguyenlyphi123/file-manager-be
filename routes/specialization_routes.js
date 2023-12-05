@@ -48,8 +48,8 @@ router.post('/', async (req, res) => {
 // @desc Get all specialization
 // @access Public
 router.get('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const permission = req.data.permission;
+  const userId = req.user.id;
+  const permission = req.user.permission;
 
   try {
     const userData = await getUserData(userId);

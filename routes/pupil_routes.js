@@ -9,7 +9,7 @@ const { authorizeUser } = require('../middlewares/authorization');
 // @access Private
 router.get('/class/:classId', authorizeUser, async (req, res) => {
   const classId = req.params.classId;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     if (classId === 'undefined') {

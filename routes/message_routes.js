@@ -11,7 +11,7 @@ const { Types } = require('mongoose');
 // @desc Create a new message by chatId
 // @access Private
 router.post('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { content, chat } = req.body;
 
   if (!content || !chat)
@@ -53,7 +53,7 @@ router.post('/', authorizeUser, async (req, res) => {
 // @desc Get all unseen messages by userId
 // @access Private
 router.get('/unseen', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const chats = await Chat.find({
@@ -95,7 +95,7 @@ router.get('/unseen', authorizeUser, async (req, res) => {
 // @access Private
 router.get('/:chatId', authorizeUser, async (req, res) => {
   const chatId = req.params.chatId;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;

@@ -13,7 +13,7 @@ const { getChatWithQuery } = require('../controllers/chat');
 // @access Private
 router.post('/', authorizeUser, async (req, res) => {
   const { name, member } = req.body;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   if (!member)
     return res.status(400).json({
@@ -46,7 +46,7 @@ router.post('/', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/group', authorizeUser, async (req, res) => {
   const { name, member } = req.body;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   if (!member || !name)
     return res.status(400).json({
@@ -96,7 +96,7 @@ router.post('/delete', authorizeUser, async (req, res) => {
 // @desc Leave a chat by chatId
 // @access Private
 router.post('/group/leave', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { chatId } = req.body;
 
   try {
@@ -166,7 +166,7 @@ router.post('/group/add', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/group/remove', authorizeUser, async (req, res) => {
   const { chatId, memberId } = req.body;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const chat = await Chat.findOneAndUpdate(
@@ -197,7 +197,7 @@ router.post('/group/remove', authorizeUser, async (req, res) => {
 // @access Private
 router.post('/group/delete', authorizeUser, async (req, res) => {
   const { chatId } = req.body;
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const chat = await Chat.findOneAndDelete({
@@ -229,7 +229,7 @@ router.post('/group/delete', authorizeUser, async (req, res) => {
 // @desc Get all chats by member
 // @access Private
 router.get('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   try {
     const queries = {

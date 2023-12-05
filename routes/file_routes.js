@@ -8,7 +8,7 @@ const storage = require('../config/googleStorage');
 const File = require('../models/File');
 const Folder = require('../models/Folder');
 const Require = require('../models/Require');
-const { DescFolderSize } = require('../helpers/FolderHelper');
+const { descFolderSize } = require('../helpers/folder.helper');
 const { fileResponseEx } = require('../types/file');
 const { getFileWithQuery } = require('../controllers/file');
 const { isAuthor } = require('../helpers/AuthHelper');
@@ -20,7 +20,7 @@ const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 // @access Private
 router.post('/', authorizeUser, async (req, res) => {
   const { name, type, size, parent_folder, link } = req.body;
-  const author = req.data.id;
+  const author = req.user.id;
 
   if (!name)
     return res.status(400).json({
@@ -88,8 +88,8 @@ router.post('/', authorizeUser, async (req, res) => {
 // @desc Copy file
 // @access Private
 router.post('/copy', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const email = req.data.email;
+  const userId = req.user.id;
+  const email = req.user.email;
   const { data, folderId } = req.body;
 
   try {
@@ -171,7 +171,7 @@ const gcCopyFile = async (fileName, destName) => {
 // @desc Move file
 // @access Private
 router.post('/move', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { data, folderId } = req.body;
 
   try {
@@ -229,7 +229,7 @@ router.post('/move', authorizeUser, async (req, res) => {
 // @desc Delete file by fileId
 // @access Private
 router.post('/delete', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { fileData } = req.body;
 
   try {
@@ -257,7 +257,7 @@ router.post('/delete', authorizeUser, async (req, res) => {
         },
       );
 
-      const descFolderSizePromise = DescFolderSize(
+      const descFolderSizePromise = descFolderSize(
         fileData.parent_folder._id,
         fileData.size,
       );
@@ -318,7 +318,7 @@ const gcDeleteFile = async (fileName) => {
 // @desc Delete multiple files
 // @access Private
 router.post('/multiple-delete', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { files } = req.body;
 
   try {
@@ -333,7 +333,7 @@ router.post('/multiple-delete', authorizeUser, async (req, res) => {
           },
         );
 
-        const descFolderSizePromise = DescFolderSize(
+        const descFolderSizePromise = descFolderSize(
           fileData.parent_folder._id,
           fileData.size,
         );
@@ -370,7 +370,7 @@ router.post('/multiple-delete', authorizeUser, async (req, res) => {
 // @desc Share file by fileId to emails
 // @access Private
 router.post('/share', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { fileId, emails, permissions } = req.body;
 
   if (!fileId || !emails)
@@ -441,7 +441,7 @@ router.post('/share', authorizeUser, async (req, res) => {
 // @desc Star file by fileId
 // @access Private
 router.put('/:id/star', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const fileId = req.params.id;
 
   try {
@@ -475,7 +475,7 @@ router.put('/:id/star', authorizeUser, async (req, res) => {
 // @desc Unstar file by fileId
 // @access Private
 router.put('/:id/unstar', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const fileId = req.params.id;
 
   try {
@@ -509,7 +509,7 @@ router.put('/:id/unstar', authorizeUser, async (req, res) => {
 // @desc Unstar multiple files
 // @access Private
 router.put('/multiple-unstar', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { files } = req.body;
 
   try {
@@ -537,8 +537,8 @@ router.put('/multiple-unstar', authorizeUser, async (req, res) => {
 // @desc Rename file
 // @access Private
 router.put('/rename', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const email = req.data.email;
+  const userId = req.user.id;
+  const email = req.user.email;
   const { fileData, name } = req.body;
 
   if (!name)
@@ -583,8 +583,8 @@ const gcRenameFile = async (fileName, destFileName) => {
 // @desc Trash file
 // @access Private
 router.put('/trash', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
-  const email = req.data.email;
+  const userId = req.user.id;
+  const email = req.user.email;
   const { fileId } = req.body;
 
   try {
@@ -623,7 +623,7 @@ router.put('/trash', authorizeUser, async (req, res) => {
 // @desc Restore file
 // @access Private
 router.put('/restore', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { fileId } = req.body;
 
   try {
@@ -642,7 +642,7 @@ router.put('/restore', authorizeUser, async (req, res) => {
 // @desc Restore multiple files
 // @access Private
 router.put('/multiple-restore', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
   const { files } = req.body;
 
   try {
@@ -670,7 +670,7 @@ router.put('/multiple-restore', authorizeUser, async (req, res) => {
 // @desc Get all files
 // @access Private
 router.get('/', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -700,7 +700,7 @@ router.get('/', authorizeUser, async (req, res) => {
 // @desc Get all trashed files
 // @access Private
 router.get('/trash', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -734,7 +734,7 @@ router.get('/trash', authorizeUser, async (req, res) => {
 // @desc Get all starred files
 // @access Private
 router.get('/star', authorizeUser, async (req, res) => {
-  const userId = req.data.id;
+  const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
@@ -768,7 +768,7 @@ router.get('/star', authorizeUser, async (req, res) => {
 // @desc Get all shared files
 // @access Private
 router.get('/shared', authorizeUser, async (req, res) => {
-  const email = req.data.email;
+  const email = req.user.email;
 
   const limit = parseInt(req.query.limit) || 20;
   const page = parseInt(req.query.page) || 1;
