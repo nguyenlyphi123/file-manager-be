@@ -115,4 +115,23 @@ const getSpecializationData = async (specializations) => {
   return updatedSpecializations;
 };
 
+// @route GET api/specialization/major/:id
+// @desc Get specialization by major id
+// @access Private
+router.get('/major/:id', authorizeUser, async (req, res) => {
+  try {
+    const specialization = await Specialization.find(
+      { major: req.params.id },
+      { major: 0 },
+    );
+
+    res.json({ success: true, data: specialization });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
 module.exports = router;
