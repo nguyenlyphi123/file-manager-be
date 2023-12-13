@@ -35,6 +35,11 @@ const InformationSchema = new Schema({
       ref: 'class',
     },
   ],
+  mentor: {
+    type: Schema.Types.ObjectId,
+    ref: 'account',
+    default: null,
+  },
   createAt: {
     type: Date,
     default: Date.now(),

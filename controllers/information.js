@@ -54,18 +54,6 @@ const getInformationWithQuery = async (q) => {
       },
     },
     {
-      $unwind: {
-        path: '$specialization',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $unwind: {
-        path: '$class',
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
       $project: informationRes,
     },
   ]);
