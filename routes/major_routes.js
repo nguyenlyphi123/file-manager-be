@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const Major = require('../models/Major');
+const { authorizeUser } = require('../middlewares/authorization');
 
 // @route POST api/major
 // @desc Create new major for lecturers
@@ -32,6 +33,22 @@ router.post('/', async (req, res) => {
       message: 'Create major successfully',
       createMajor,
     });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/major
+// @desc Get all majors
+// @access Private
+router.get('/', authorizeUser, async (req, res) => {
+  try {
+    const majors = await Major.find();
+
+    res.json({ success: true, data: majors });
   } catch (error) {
     console.log(error);
     return res
