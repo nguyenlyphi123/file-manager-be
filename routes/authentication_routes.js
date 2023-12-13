@@ -10,6 +10,9 @@ const { authorizeUser } = require('../middlewares/authorization');
 const Account = require('../models/Account');
 const Information = require('../models/Information');
 const { getAuth, getInfomation } = require('../controllers/auth');
+const redisClient = require('../modules/redis');
+const { REDIS_AUTH_KEY } = require('../constants/redisKey');
+const redis = require('../modules/redis');
 
 let refreshTokens = [];
 
@@ -76,7 +79,15 @@ router.post('/refresh-token', (req, res) => {
 // @access private
 router.get('/', authorizeUser, async (req, res) => {
   try {
-    const queries = { _id: new Types.ObjectId(req.data.id) };
+    const cachedUser = await redisClient.getValue(
+      `${REDIS_AUTH_KEY}:${req.user.id}`,
+    );
+
+    if (cachedUser) {
+      return res.json({ success: true, data: JSON.parse(cachedUser) });
+    }
+
+    const queries = { _id: new Types.ObjectId(req.user.id) };
     const accountExists = await getAuth(queries);
 
     if (!accountExists.length === 0)
@@ -220,6 +231,11 @@ router.post('/login', async (req, res) => {
       secure: true,
     });
 
+    redisClient.setValue(
+      `${REDIS_AUTH_KEY}:${accountData.id}`,
+      JSON.stringify(accountData),
+    );
+
     res.json({
       success: true,
       message: 'Login successfully',
@@ -239,12 +255,16 @@ router.post('/login', async (req, res) => {
 // @desc Logout for all user
 // @access Public
 router.post('/logout', (req, res) => {
+  const uid = req.body.id;
+
   refreshTokens = refreshTokens.filter(
     (token) => token !== req.body.refreshToken,
   );
 
   res.clearCookie('accessToken');
   res.clearCookie('refreshToken');
+
+  redisClient.delValue(`${REDIS_AUTH_KEY}:${uid}`);
 
   res.json({ success: true, message: 'Logout successfully' });
 });
@@ -389,6 +409,8 @@ router.get(
       sameSite: 'none',
       secure: true,
     };
+
+    redisClient.setValue(`${REDIS_AUTH_KEY}:${data.id}`, JSON.stringify(data));
 
     res.cookie('accessToken', accessToken, cookieOptions);
     res.cookie('refreshToken', refreshToken, cookieOptions);
