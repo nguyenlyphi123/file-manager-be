@@ -8,18 +8,21 @@ module.exports = (server, options) => {
 
     let sender = null;
 
-    io.on('setup', (data) => {
+    socket.on('setup', (data) => {
       sender = data.id;
       socket.join(data.id);
       socket.emit('connected');
     });
 
-    io.on('join-room', (room) => {
+    socket.on('join-room', (room) => {
+      console.log(room);
       socket.join(room);
     });
 
-    io.on('send-message', (message) => {
+    socket.on('send-message', (message) => {
       const { receiver } = message;
+
+      console.log(receiver);
 
       receiver.forEach((receive) => {
         if (receive._id === sender) return;
@@ -28,19 +31,19 @@ module.exports = (server, options) => {
       });
     });
 
-    io.on('typing', (room) => {
+    socket.on('typing', (room) => {
       socket.to(room).emit('typing');
     });
 
-    io.on('stop-typing', (room) => {
+    socket.on('stop-typing', (room) => {
       socket.to(room).emit('stop-typing');
     });
 
-    io.on('disconnect', () => {
+    socket.on('disconnect', () => {
       console.log('Client disconnected');
     });
 
-    io.on('send-require', (require) => {
+    socket.on('send-require', (require) => {
       const {
         to,
         author,
