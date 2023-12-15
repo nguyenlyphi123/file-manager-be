@@ -15,14 +15,11 @@ module.exports = (server, options) => {
     });
 
     socket.on('join-room', (room) => {
-      console.log(room);
       socket.join(room);
     });
 
     socket.on('send-message', (message) => {
       const { receiver } = message;
-
-      console.log(receiver);
 
       receiver.forEach((receive) => {
         if (receive._id === sender) return;
