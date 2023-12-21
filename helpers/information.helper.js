@@ -14,6 +14,14 @@ const getInformationById = async (id) => {
     },
     {
       $lookup: {
+        from: 'accounts',
+        localField: 'account_id',
+        foreignField: '_id',
+        as: 'account',
+      },
+    },
+    {
+      $lookup: {
         from: 'majors',
         localField: 'major',
         foreignField: '_id',
@@ -38,22 +46,29 @@ const getInformationById = async (id) => {
     },
     {
       $unwind: {
+        path: '$account',
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $unwind: {
         path: '$major',
-        preserveNullAndEmptyArrays: false,
+        preserveNullAndEmptyArrays: true,
       },
     },
     {
       $unwind: {
         path: '$mentor',
-        preserveNullAndEmptyArrays: false,
+        preserveNullAndEmptyArrays: true,
       },
     },
     {
       $replaceWith: {
-        _id: '$account_id',
+        _id: '$account._id',
         name: '$name',
         email: '$email',
         image: '$image',
+        permission: '$account.permission',
         major: '$major',
         specialization: '$specialization',
         class: '$class',
@@ -68,6 +83,7 @@ const getInformationById = async (id) => {
         name: 1,
         email: 1,
         image: 1,
+        permission: 1,
         major: {
           _id: 1,
           name: 1,
@@ -89,7 +105,7 @@ const getInformationById = async (id) => {
     },
   ]);
 
-  return information;
+  return information?.[0];
 };
 
 // get list information

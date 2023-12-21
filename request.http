@@ -51,58 +51,58 @@ Content-Type: application/json
 
 ### Authentication
 ###
-POST http://localhost:9000/api/authentication/lecturers/register
-Content-Type: application/json
+# POST http://localhost:9000/api/authentication/lecturers/register
+# Content-Type: application/json
 
-{
-    "username": "tranthingocanh",
-    "password": "tranthingocanh",
-    "name": "Trần Thị Ngọc Ánh",
-    "email": "tranthingocanh@gmail.com",
-    "major": "645894942c714f9e1ad44ee3",
-    "specialization": [
-        "645894942c714f9e1ad44ee3",
-        "6458954e34a09c5f3e8477e4"
-    ]
-}
-
-###
-POST http://localhost:9000/api/authentication/manager/register
-Content-Type: application/json
-
-{
-    "username": "tranvannguyen",
-    "password": "tranvannguyen",
-    "name": "Trần Văn Nguyên",
-    "email": "tranvannguyen@gmail.com",
-    "major": "645894942c714f9e1ad44ee3"
-}
+# {
+#     "username": "tranthingocanh",
+#     "password": "tranthingocanh",
+#     "name": "Trần Thị Ngọc Ánh",
+#     "email": "tranthingocanh@gmail.com",
+#     "major": "645894942c714f9e1ad44ee3",
+#     "specialization": [
+#         "645894942c714f9e1ad44ee3",
+#         "6458954e34a09c5f3e8477e4"
+#     ]
+# }
 
 ###
-POST http://localhost:9000/api/authentication/pupil/register
-Content-Type: application/json
+# POST http://localhost:9000/api/authentication/manager/register
+# Content-Type: application/json
 
-{
-    "username": "ghi",
-    "password": "ghi",
-    "name": "Nguyễn Văn C",
-    "email": "cvannguyen@gmail.com",
-    "specialization": [
-        "6458954e34a09c5f3e8477e4"
-    ],
-    "class_": "64be3ff263e6c800035ab359"
-}
+# {
+#     "username": "tranvannguyen",
+#     "password": "tranvannguyen",
+#     "name": "Trần Văn Nguyên",
+#     "email": "tranvannguyen@gmail.com",
+#     "major": "645894942c714f9e1ad44ee3"
+# }
+
+###
+# POST http://localhost:9000/api/authentication/pupil/register
+# Content-Type: application/json
+
+# {
+#     "username": "ghi",
+#     "password": "ghi",
+#     "name": "Nguyễn Văn C",
+#     "email": "cvannguyen@gmail.com",
+#     "specialization": [
+#         "6458954e34a09c5f3e8477e4"
+#     ],
+#     "class_": "64be3ff263e6c800035ab359"
+# }
 
 ###
 POST http://localhost:9000/api/authentication/register
 Content-Type: application/json
 
 {
-    "username": "quatroiten",
-    "password": "quatroiten",
-    "name": "Quá Trời Tên",
-    "email": "quatroiten@gmail.com",
-    "permission": "LECTURERS"
+    "username": "123",
+    "password": "123",
+    "name": "La Quốc Thắng",
+    "email": "123@gmail.com",
+    "permission": "PUPIL"
 }
 
 ###

@@ -128,6 +128,7 @@ const getRequireWithQuery = async (q) => {
               _id: '$infoDetails._id',
               name: '$additionalInfoDetails.name',
               email: '$additionalInfoDetails.email',
+              image: '$additionalInfoDetails.image',
             },
             seen: '$to.seen',
             sent: '$to.sent',

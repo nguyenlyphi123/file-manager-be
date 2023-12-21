@@ -2,6 +2,7 @@ const { getInformationById } = require('../helpers/information.helper');
 const {
   InternalServerError,
   BadRequestError,
+  NotFoundError,
 } = require('../core/error.response');
 const {
   getGroupedInformationList,
@@ -37,6 +38,10 @@ class InformationService {
   async getInformationById() {
     try {
       const information = await getInformationById(this.account_id);
+
+      if (!information) {
+        throw new NotFoundError('Information not found');
+      }
 
       return information;
     } catch (error) {
