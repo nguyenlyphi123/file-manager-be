@@ -142,6 +142,37 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
   }
 });
 
+// @route POST api/folder/un-share
+// @desc Un share folder by folderId
+// @access Private
+router.put(
+  '/unshare/:folderId',
+  authorization.authorizeUser,
+  async (req, res) => {
+    const uid = req.user.id;
+    const folderId = req.params.folderId;
+
+    try {
+      await Folder.updateOne(
+        { _id: folderId, author: uid },
+        { sharedTo: [], permission: [] },
+      );
+
+      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${uid}`);
+
+      res.json({
+        success: true,
+        message: 'Folder has been unshared successfully',
+      });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ success: false, message: 'Internal Server Error' });
+    }
+  },
+);
+
 // @route PUT api/folder/:folderId/restore
 // @desc Restore folder by folderId
 // @access Private
@@ -753,6 +784,39 @@ router.get('/shared', authorization.authorizeUser, async (req, res) => {
   try {
     const queries = {
       sharedTo: email,
+    };
+
+    const sort = { [sortKey]: -1 };
+
+    const folders = await getFolderWithQuery(queries, sort, skip, limit);
+
+    res.json({ success: true, data: folders });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/folder/sharedByMe
+// @desc Get folder that was shared by Me
+// @access Private
+router.get('/sharedByMe', authorization.authorizeUser, async (req, res) => {
+  const uid = req.user.id;
+
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
+  try {
+    const queries = {
+      author: new Types.ObjectId(uid),
+      sharedTo: {
+        $exists: true,
+        $ne: [],
+      },
     };
 
     const sort = { [sortKey]: -1 };

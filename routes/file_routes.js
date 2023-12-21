@@ -733,7 +733,7 @@ router.get('/trash', authorizeUser, async (req, res) => {
 // @route GET api/file/star
 // @desc Get all starred files
 // @access Private
-router.get('/star', authorizeUser, async (req, res) => {
+router.get('/starred', authorizeUser, async (req, res) => {
   const userId = req.user.id;
 
   const limit = parseInt(req.query.limit) || 20;
@@ -778,6 +778,35 @@ router.get('/shared', authorizeUser, async (req, res) => {
   try {
     const queries = {
       sharedTo: email,
+    };
+    const sort = { [sortKey]: -1 };
+
+    const files = await getFileWithQuery(queries, sort, skip, limit);
+
+    res.json({ success: true, data: files });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+// @route GET api/file/sharedByMe
+// @desc Get all shared files by Me
+// @access Private
+router.get('/sharedByMe', authorizeUser, async (req, res) => {
+  const uid = req.user.id;
+
+  const limit = parseInt(req.query.limit) || 20;
+  const page = parseInt(req.query.page) || 1;
+  const skip = (page - 1) * limit;
+  const sortKey = req.query.sortKey || 'lastOpened';
+
+  try {
+    const queries = {
+      author: new Types.ObjectId(uid),
+      sharedTo: { $ne: [] },
     };
     const sort = { [sortKey]: -1 };
 
