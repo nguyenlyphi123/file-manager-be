@@ -189,15 +189,10 @@ class FolderService {
         findAllFiles(this._id),
       ]);
 
-      const folderDeletedResult = await Promise.allSettled([
-        Folder.findOneAndDelete({
-          _id: this._id,
-          author: uid,
-        }),
-        File.deleteOne({ parent_folder: this._id }),
-      ]);
-
-      const folderDeleted = folderDeletedResult[0].value;
+      const folderDeleted = await Folder.findOneAndDelete({
+        _id: this._id,
+        author: uid,
+      }).populate('files', '_id name');
 
       if (!folderDeleted) {
         throw new BadRequestError(
@@ -213,7 +208,20 @@ class FolderService {
           }),
         files.value.length > 0 &&
           File.deleteMany({ _id: { $in: files.value.map((f) => f._id) } }),
+        File.deleteMany({ parent_folder: this._id }),
       ];
+
+      if (folderDeleted.files.length > 0) {
+        subPromises.push(
+          folderDeleted.files.forEach((file) => {
+            subPromises.push(
+              GcService.deleteFile(
+                `files/${file.name}_${uid}_${folderDeleted._id}`,
+              ),
+            );
+          }),
+        );
+      }
 
       if (folderDeleted.parent_folder) {
         subPromises.push(
@@ -234,7 +242,7 @@ class FolderService {
       if (files.value.length > 0) {
         Promise.allSettled(
           files.value.map((file) => {
-            const gcFileName = `${file.name}_${uid}_${folderDeleted._id}`;
+            const gcFileName = `files/${file.name}_${uid}_${folderDeleted._id}`;
             return GcService.deleteFile(gcFileName);
           }),
         );
@@ -274,7 +282,7 @@ class FolderService {
         if (files.value.length > 0) {
           await Promise.all(
             files.value.map((file) => {
-              const gcFileName = `${file.name}_${uid}_${folderDeleted._id}`;
+              const gcFileName = `files/${file.name}_${uid}_${folderDeleted._id}`;
               return GcService.deleteFile(gcFileName);
             }),
           );
@@ -285,16 +293,27 @@ class FolderService {
         // Delete all folders from database
         await Promise.all(
           folderIds.map(async (folderId) => {
-            const foldersDeletedResult = await Promise.all([
-              Folder.findOneAndDelete({
-                _id: folderId,
-                author: uid,
-              }),
-              File.deleteOne({ parent_folder: folderId }),
-            ]);
-            const folderDeleted = foldersDeletedResult[0]?.value;
+            const folderDeleted = await Folder.findOneAndDelete({
+              _id: folderId,
+              author: uid,
+            }).populate('files', '_id name');
+
+            const subPromises = [File.deleteOne({ parent_folder: folderId })];
+
+            if (folderDeleted.files.length > 0) {
+              subPromises.push(
+                folderDeleted.files.forEach((file) => {
+                  subPromises.push(
+                    GcService.deleteFile(
+                      `files/${file.name}_${uid}_${folderDeleted._id}`,
+                    ),
+                  );
+                }),
+              );
+            }
+
             if (folderDeleted?.parent_folder) {
-              await Promise.all([
+              subPromises.push(
                 Folder.updateOne(
                   { _id: folderDeleted.parent_folder },
                   {
@@ -303,8 +322,10 @@ class FolderService {
                   },
                 ),
                 descFolderSize(folderDeleted.parent_folder, folderDeleted.size),
-              ]);
+              );
             }
+
+            return Promise.allSettled(subPromises);
           }),
         );
       };
