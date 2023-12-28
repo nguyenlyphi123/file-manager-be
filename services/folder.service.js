@@ -183,8 +183,6 @@ class FolderService {
     }
 
     try {
-      const gcService = new GcService();
-
       // Find folder, sub_folders and files to delete
       const [subFolders, files] = await Promise.allSettled([
         findAllSubFolder(this._id),
@@ -237,7 +235,7 @@ class FolderService {
         Promise.allSettled(
           files.value.map((file) => {
             const gcFileName = `${file.name}_${uid}_${folderDeleted._id}`;
-            return gcService.deleteFile(gcFileName);
+            return GcService.deleteFile(gcFileName);
           }),
         );
       }
@@ -255,8 +253,6 @@ class FolderService {
     }
 
     try {
-      const gcService = new GcService();
-
       const deleteSubFolders = async () => {
         // Find sub_folders and files to delete
         const [subFolders, files] = await Promise.all([
@@ -279,7 +275,7 @@ class FolderService {
           await Promise.all(
             files.value.map((file) => {
               const gcFileName = `${file.name}_${uid}_${folderDeleted._id}`;
-              return gcService.deleteFile(gcFileName);
+              return GcService.deleteFile(gcFileName);
             }),
           );
         }

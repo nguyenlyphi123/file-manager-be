@@ -1,17 +1,40 @@
 const storage = require('../config/googleStorage');
 
-const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
+const bucketName = process.env.GCLOUD_BUCKET_NAME;
 
 class GcService {
-  constructor() {}
+  constructor() {
+    this.storage = storage;
+    this.bucketName = bucketName;
+  }
 
-  async deleteFile(fileName) {
-    try {
-      await bucket.file(`files/${fileName}`).delete();
-    } catch (error) {
-      throw error;
-    }
+  async uploadFile(destFileName) {
+    return await this.storage
+      .bucket(this.bucketName)
+      .file(destFileName)
+      .createWriteStream();
+  }
+
+  async downloadFile(srcFileName) {
+    return await this.storage
+      .bucket(this.bucketName)
+      .file(srcFileName)
+      .download();
+  }
+
+  async deleteFile(srcFileName) {
+    return await this.storage
+      .bucket(this.bucketName)
+      .file(srcFileName)
+      .delete();
+  }
+
+  async getFileMetadata(srcFileName) {
+    return await this.storage
+      .bucket(this.bucketName)
+      .file(srcFileName)
+      .getMetadata();
   }
 }
 
-module.exports = GcService;
+module.exports = new GcService();

@@ -1,8 +1,9 @@
 const { Types } = require('mongoose');
 
 const Folder = require('../models/Folder');
+const { transferSelection } = require('./hepler');
 
-const findAllFiles = async (folderId) => {
+const findAllFiles = async (folderId, fileSelector) => {
   const pipeline = [
     {
       $match: {
@@ -38,10 +39,12 @@ const findAllFiles = async (folderId) => {
           _id: '$subFolders._id',
           name: '$subFolders.name',
         },
-        subFolderFiles: {
-          _id: 1,
-          name: 1,
-        },
+        subFolderFiles: fileSelector
+          ? transferSelection(fileSelector)
+          : {
+              _id: 1,
+              name: 1,
+            },
       },
     },
     {

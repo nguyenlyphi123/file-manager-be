@@ -112,7 +112,7 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
         { new: true },
       );
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       res.json({
         success: true,
@@ -131,7 +131,7 @@ router.post('/share', authorization.authorizeUser, async (req, res) => {
       { new: true },
     );
 
-    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+    await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     res.json({ success: true, message: 'Folder has been shared successfully' });
   } catch (error) {
@@ -158,7 +158,7 @@ router.put(
         { sharedTo: [], permission: [] },
       );
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${uid}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${uid}`);
 
       res.json({
         success: true,
@@ -219,7 +219,7 @@ router.put(
 
       await Promise.all(promises);
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       return res.json({
         success: true,
@@ -252,7 +252,7 @@ router.post(
         { new: true },
       );
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       res.json({
         success: true,
@@ -294,7 +294,9 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
       } else {
         await Folder.updateOne({ _id: folderId }, { name });
 
-        redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+        await redisClient.delWithKeyMatchPrefix(
+          `${REDIS_FOLDERS_KEY}:${userId}`,
+        );
 
         return res.json({
           success: true,
@@ -336,7 +338,7 @@ router.put('/:folderId', authorization.authorizeUser, async (req, res) => {
       );
     }
 
-    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+    await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     res.json({
       success: true,
@@ -360,7 +362,7 @@ router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
   try {
     const folder = await Folder.findOneAndUpdate(
       { _id: folderId, author: userId },
-      { isStar: true },
+      [{ $set: { isStar: { $not: '$isStar' } } }],
       { new: true },
     );
 
@@ -370,11 +372,11 @@ router.put('/star/:folderId', authorization.authorizeUser, async (req, res) => {
         message: 'You do not have permission to do this',
       });
 
-    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+    await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     return res.json({
       success: true,
-      message: 'Folder has been starred successfully',
+      message: 'Folder has been updated successfully',
     });
   } catch (error) {
     console.error(error);
@@ -405,7 +407,7 @@ router.put('/unstar/single', authorization.authorizeUser, async (req, res) => {
       });
     }
 
-    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+    await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     return res.json({
       success: true,
@@ -436,7 +438,7 @@ router.put(
         { new: true },
       );
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       return res.json({
         success: true,
@@ -478,7 +480,9 @@ router.put(
           { $pull: { sharedTo: email } },
         );
 
-        redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+        await redisClient.delWithKeyMatchPrefix(
+          `${REDIS_FOLDERS_KEY}:${userId}`,
+        );
 
         return res.json({
           success: true,
@@ -512,7 +516,7 @@ router.put(
 
       await Promise.all(promises);
 
-      redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+      await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
       return res.json({
         success: true,
@@ -542,7 +546,7 @@ router.put('/:folderId/pin', authorization.authorizeUser, async (req, res) => {
       { new: true },
     );
 
-    redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
+    await redisClient.delWithKeyMatchPrefix(`${REDIS_FOLDERS_KEY}:${userId}`);
 
     res.json({
       success: true,

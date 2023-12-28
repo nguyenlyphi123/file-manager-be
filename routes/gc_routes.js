@@ -10,7 +10,7 @@ const Folder = require('../models/Folder');
 const File = require('../models/File');
 const Require = require('../models/Require');
 const RequireOrder = require('../models/RequireOrder');
-const { incFolderSize } = require('../helpers/folder.helper');
+const { incFolderSize, findAllSubFolder } = require('../helpers/folder.helper');
 const { isAuthor } = require('../helpers/AuthHelper');
 
 const router = express.Router();
@@ -18,6 +18,9 @@ const router = express.Router();
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
 const upload = multer();
+
+const GcService = require('../services/gc.service');
+const { findAllFiles } = require('../helpers/file.helper');
 
 // @route POST api/gc/upload
 // @desc Upload file to Google Cloud Storage
@@ -46,7 +49,9 @@ router.post(
       const originalName = Buffer.from(fileName, 'binary');
       const utf8Originalname = iconv.decode(originalName, 'utf8');
 
-      let gcFileName = `${utf8Originalname}_${userId}_${parent_folder}`;
+      let gcFileName = `${utf8Originalname}_${userId}${
+        parent_folder ? `_${parent_folder}` : ''
+      }`;
       const regexPattern = new RegExp(`^${fileName}( \\(\\d+\\))?`);
 
       const sentRequire = await Require.findOne({
@@ -75,8 +80,12 @@ router.post(
 
       if (existsFile && existsFile.length > 0) {
         const newIndex = lastIndex + 1;
-        file.originalname = `${utf8Originalname}_${userId}_${parent_folder} (${newIndex})`;
-        gcFileName = `${utf8Originalname}_${userId}_${parent_folder} (${newIndex})`;
+        file.originalname = `${utf8Originalname}_${userId}${
+          parent_folder ? `_${parent_folder}` : ''
+        } (${newIndex})`;
+        gcFileName = `${utf8Originalname}_${userId}${
+          parent_folder ? `_${parent_folder}` : ''
+        } (${newIndex})`;
       }
 
       const uploadProcess = bucket.file(`files/${gcFileName}`);
@@ -145,7 +154,7 @@ router.post(
         }
 
         if (
-          uploadedFile.parent_folder.isRequireFolder &&
+          uploadedFile.parent_folder?.isRequireFolder &&
           !isAuthor(userId, uploadedFile.parent_folder.owner)
         ) {
           const require = await Require.findOne({
@@ -230,16 +239,23 @@ router.post('/download', authorizeUser, async (req, res) => {
     }
 
     const fileName = `${fileData.name}_${userId}`;
-    const [file] = await bucket.file(`files/${fileName}`).download();
+    const srcFileName = `files/${fileName}`;
 
-    const metadata = await bucket.file(`files/${fileName}`).getMetadata();
+    const [[file], metadata] = await Promise.all([
+      GcService.downloadFile(srcFileName),
+      GcService.getFileMetadata(srcFileName),
+    ]);
+
+    // const [file] = await bucket.file(`files/${fileName}`).download();
+
+    // const metadata = await bucket.file(`files/${fileName}`).getMetadata();
 
     const contentType = metadata[0].contentType;
 
     const buffer = Buffer.from(file);
 
     res.set('Content-Type', contentType); // Set the appropriate content type for the file
-    res.set('Content-Disposition', `attachment; filename="myfile.some"`);
+    res.set('Content-Disposition', `attachment; filename="${fileName}"`);
     res.set('Content-Length', buffer.length);
     res.send(buffer);
   } catch (error) {
@@ -275,7 +291,9 @@ router.post('/folder/download', authorizeUser, async (req, res) => {
 
     const zip = new JSZip();
 
-    const folders = await getAllFilesInSubFolders(folderId);
+    const folders = await getAllFilesAndSubFolders(folderId);
+
+    console.log('zipInput', folders);
 
     await zipFolderAndFiles(zip, folders);
 
@@ -286,6 +304,7 @@ router.post('/folder/download', authorizeUser, async (req, res) => {
     res.set('Content-Length', zipData.length);
     res.send(zipData);
   } catch (error) {
+    console.log(error);
     return res
       .status(500)
       .json({ success: false, message: 'Something went wrong' });
@@ -293,18 +312,23 @@ router.post('/folder/download', authorizeUser, async (req, res) => {
 });
 
 async function zipFolderAndFiles(zip, folderData, currentPath = '') {
-  const folderName = folderData.folder;
+  console.log('Processing folder:', folderData.name);
+
+  const folderName = folderData.name;
   const folderPath = currentPath ? `${currentPath}/${folderName}` : folderName;
 
   const folder = zip.folder(folderPath);
 
   if (folderData.files && folderData.files.length > 0) {
+    console.log(`Adding files to folder ${folderPath}:`, folderData.files);
     for (const file of folderData.files) {
       try {
-        const fileName = `${file.name}_${file.author}`;
+        const fileName = `${file.name}_${file.author}${
+          file.parent_folder ? `_${file.parent_folder}` : ''
+        }`;
         const fileZipName = `${file.name}.${file.type}`;
 
-        const [fileData] = await bucket.file(fileName).download();
+        const [fileData] = await GcService.downloadFile(`files/${fileName}`);
         const buffer = Buffer.from(fileData);
 
         folder.file(fileZipName, buffer);
@@ -315,34 +339,77 @@ async function zipFolderAndFiles(zip, folderData, currentPath = '') {
     }
   }
 
-  if (folderData.sub_folders && folderData.sub_folders.length > 0) {
-    for (const subFolderData of folderData.sub_folders) {
-      const folderPath = currentPath
+  if (folderData.sub_folder && folderData.sub_folder.length > 0) {
+    console.log(
+      `Processing subfolders of ${folderPath}:`,
+      folderData.sub_folder,
+    );
+    for (const subFolderData of folderData.sub_folder) {
+      const subFolderPath = currentPath
         ? `${currentPath}/${folderName}`
         : folderName;
-      await zipFolderAndFiles(zip, subFolderData, folderPath);
+      await zipFolderAndFiles(zip, subFolderData, subFolderPath);
     }
   }
 }
 
-async function getAllFilesInSubFolders(folderId) {
-  const folder = await Folder.findById(folderId).populate('files sub_folder');
+async function getAllFilesAndSubFolders(folderId) {
+  const folder = await Folder.findById(folderId).populate('files');
 
   const folderData = {
-    folder: folder.name,
-    files: folder.files.map((file) => file),
+    folder: {
+      _id: folder._id,
+      name: folder.name,
+    },
+    files: folder.files.map((file) => file) || [],
+    sub_files: [],
+    sub_folder: [],
   };
 
-  if (folder.sub_folder && folder.sub_folder.length > 0) {
-    const subFolders = [];
-    for (const subFolder of folder.sub_folder) {
-      const subFolderData = await getAllFilesInSubFolders(subFolder._id);
-      subFolders.push(subFolderData);
+  const fileSelector = ['_id', 'name', 'type', 'parent_folder', 'author'];
+  const folderSelector = ['_id', 'name', 'parent_folder'];
+
+  const [subFiles, subFolders] = await Promise.all([
+    findAllFiles(folderId, fileSelector),
+    findAllSubFolder(folderId, folderSelector),
+  ]);
+
+  folderData.sub_files = subFiles;
+  folderData.sub_folder = subFolders.map((s) => ({ ...s, sub_folder: [] }));
+
+  return {
+    _id: folderData.folder._id,
+    name: folderData.folder.name,
+    files: folderData.files,
+    sub_folder: organizeFolders(folderData.sub_folder, folderData.sub_files),
+  };
+}
+
+function organizeFolders(subFolderArr, subFileArr) {
+  const result = [];
+
+  for (const folder of subFolderArr) {
+    const parentId = folder.parent_folder.toString();
+
+    const file = subFileArr.find(
+      (f) => f.parent_folder.toString() === folder._id.toString(),
+    );
+
+    const parentFolder = subFolderArr.find(
+      (f) => f._id.toString() === parentId,
+    );
+
+    if (parentFolder) {
+      if (!parentFolder.sub_folder) {
+        parentFolder.sub_folder = [];
+      }
+      parentFolder.sub_folder.push({ ...folder, files: file ? [file] : [] });
+    } else {
+      result.push({ ...folder, files: file ? [file] : [] });
     }
-    folderData.sub_folders = subFolders;
   }
 
-  return folderData;
+  return result;
 }
 
 // @route POST api/gc/upload/image

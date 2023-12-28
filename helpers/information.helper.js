@@ -110,35 +110,36 @@ const getInformationById = async (id) => {
 
 // get list information
 const getGroupedInformationList = async (majorId) => {
-  const [specializations, lectures, unsignedPupils] = await Promise.all([
-    Specialization.find(),
-    getLecturesInformation(majorId),
-    getPupilInformationByMentorIdAndSpecId(null, null, [
+  const [specializations, managers, unsignedPupils] = await Promise.all([
+    Specialization.find(majorId ? { major: majorId } : {}),
+    getManagerInformation(majorId),
+    getMemberInformationByManagerIdAndSpecId(null, null, [
       '_id',
       'name',
       'email',
       'image',
+      'role',
     ]),
   ]);
 
   const specializeMapping = {};
 
   await Promise.all(
-    lectures.map(async (lecture) => {
-      const { specialization } = lecture;
+    managers.map(async (manager) => {
+      const { specialization } = manager;
 
       for (const specialize of specialization) {
         if (!specializeMapping[specialize]) {
           specializeMapping[specialize] = [];
         }
 
-        const pupils = await getPupilInformationByMentorIdAndSpecId(
-          lecture._id,
+        const pupils = await getMemberInformationByManagerIdAndSpecId(
+          manager._id,
           specialize,
-          ['_id', 'name', 'email', 'image'],
+          ['_id', 'name', 'email', 'image', 'role'],
         );
 
-        specializeMapping[specialize].push({ ...lecture, members: pupils });
+        specializeMapping[specialize].push({ ...manager, members: pupils });
       }
     }),
   );
@@ -161,8 +162,8 @@ const getGroupedInformationList = async (majorId) => {
   return result;
 };
 
-const getLecturesInformation = async (majorId) => {
-  const lectures = await Information.aggregate([
+const getManagerInformation = async (majorId) => {
+  const managers = await Information.aggregate([
     {
       $lookup: {
         from: 'accounts',
@@ -180,10 +181,10 @@ const getLecturesInformation = async (majorId) => {
     {
       $match: majorId
         ? {
-            'account.permission': process.env.PERMISSION_LECTURERS,
-            major: new Types.ObjectId(majorId),
+            'account.permission': process.env.PERMISSION_MANAGER,
+            'major': new Types.ObjectId(majorId),
           }
-        : { 'account.permission': process.env.PERMISSION_LECTURERS },
+        : { 'account.permission': process.env.PERMISSION_MANAGER },
     },
     {
       $project: {
@@ -209,11 +210,11 @@ const getLecturesInformation = async (majorId) => {
     },
   ]);
 
-  return lectures;
+  return managers;
 };
 
-const getPupilInformationByMentorIdAndSpecId = async (
-  mentorId,
+const getMemberInformationByManagerIdAndSpecId = async (
+  managerId,
   specId,
   select,
 ) => {
@@ -237,13 +238,14 @@ const getPupilInformationByMentorIdAndSpecId = async (
         'account.permission': {
           $nin: [process.env.PERMISSION_ADMIN, process.env.PERMISSION_MANAGER],
         },
-        'mentor': mentorId ? new Types.ObjectId(mentorId) : null,
+        // 'mentor': managerId ? new Types.ObjectId(managerId) : null,
         'specialization': specId ? new Types.ObjectId(specId) : [],
       },
     },
     {
       $replaceWith: {
         _id: '$account._id',
+        role: '$account.permission',
         name: '$name',
         email: '$email',
         image: '$image',

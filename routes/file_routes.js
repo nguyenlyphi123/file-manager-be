@@ -13,6 +13,8 @@ const { fileResponseEx } = require('../types/file');
 const { getFileWithQuery } = require('../controllers/file');
 const { isAuthor } = require('../helpers/AuthHelper');
 
+const GcService = require('../services/gc.service');
+
 const bucket = storage.bucket(process.env.GCLOUD_BUCKET_NAME);
 
 // @route POST api/file
@@ -266,7 +268,7 @@ router.post('/delete', authorizeUser, async (req, res) => {
     }
 
     if (
-      fileData.parent_folder.isRequireFolder &&
+      fileData.parent_folder?.isRequireFolder &&
       !isAuthor(userId, fileData.parent_folder.owner)
     ) {
       await Require.findOne({
@@ -289,13 +291,17 @@ router.post('/delete', authorizeUser, async (req, res) => {
     const fileName = match ? match[1].trim() : fileData.name.trim();
     const fileNum = match ? `(${match[2]})` : null;
 
-    let gcFileName = `${fileName}_${fileData.author._id}_${fileData.parent_folder._id}`;
+    let gcFileName = `${fileName}_${fileData.author._id}${
+      fileData.parent_folder ? `_${fileData.parent_folder._id}` : ''
+    }`;
 
     if (fileNum) {
-      gcFileName = `${fileName}_${userId}_${fileData.parent_folder} ${fileNum}`;
+      gcFileName = `${fileName}_${userId}${
+        fileData.parent_folder ? `_${fileData.parent_folder._id}` : ''
+      } ${fileNum}`;
     }
 
-    await gcDeleteFile(gcFileName);
+    await GcService.deleteFile(`files/${gcFileName}`);
 
     res.json({ success: true, message: 'File has been deleted successfully' });
   } catch (error) {
@@ -305,14 +311,6 @@ router.post('/delete', authorizeUser, async (req, res) => {
       .json({ success: false, message: 'Internal Server Error' });
   }
 });
-
-const gcDeleteFile = async (fileName) => {
-  try {
-    await bucket.file(`files/${fileName}`).delete();
-  } catch (error) {
-    throw error;
-  }
-};
 
 // @route POST api/file/multiple-delete
 // @desc Delete multiple files
@@ -344,13 +342,17 @@ router.post('/multiple-delete', authorizeUser, async (req, res) => {
       const fileName = file.name.split(' ')[0];
       const fileNum = file.name.split(' ')[1];
 
-      let gcFileName = `${fileName}_${userId}_${file.parent_folder}`;
+      let gcFileName = `${fileName}_${userId}${
+        fileData.parent_folder ? `_${fileData.parent_folder}` : ''
+      }`;
 
       if (fileNum) {
-        gcFileName = `${fileName}_${userId}_${file.parent_folder} ${fileNum}`;
+        gcFileName = `${fileName}_${userId}${
+          fileData.parent_folder ? `_${fileData.parent_folder}` : ''
+        } ${fileNum}`;
       }
 
-      return await gcDeleteFile(gcFileName);
+      return await GcService.deleteFile(`files/${gcFileName}`);
     });
 
     await Promise.all(promises);
@@ -437,15 +439,19 @@ router.post('/share', authorizeUser, async (req, res) => {
   }
 });
 
-// @route PUT api/file/:id/star
+// @route PUT api/file/star/:id
 // @desc Star file by fileId
 // @access Private
-router.put('/:id/star', authorizeUser, async (req, res) => {
+router.put('/star/:id', authorizeUser, async (req, res) => {
   const userId = req.user.id;
   const fileId = req.params.id;
 
   try {
-    const file = await File.findOne({ _id: fileId, author: userId });
+    const file = await File.findOneAndUpdate(
+      { _id: fileId, author: userId },
+      [{ $set: { isStar: { $not: '$isStar' } } }],
+      { new: true },
+    );
 
     if (!file)
       return res.status(400).json({
@@ -453,14 +459,9 @@ router.put('/:id/star', authorizeUser, async (req, res) => {
         message: 'You do not have permission to do this',
       });
 
-    await File.findOneAndUpdate(
-      { _id: fileId, author: userId },
-      { isStar: true },
-    );
-
     res.json({
       success: true,
-      message: 'File has been starred successfully',
+      message: 'File has been updated successfully',
       data: file,
     });
   } catch (error) {

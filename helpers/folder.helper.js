@@ -2,6 +2,7 @@ const { Types } = require('mongoose');
 const Folder = require('../models/Folder');
 
 const { folderResponseEx } = require('../types/folder');
+const { transferSelection } = require('./hepler');
 
 const getFolderWithQuery = async (q, st, sk, l) => {
   const folders = await Folder.aggregate([
@@ -167,7 +168,7 @@ const genFolderLocation = async (parentId) => {
   return result;
 };
 
-const findAllSubFolder = async (folderId) => {
+const findAllSubFolder = async (folderId, folderSelector) => {
   const pipeline = [
     {
       $match: {
@@ -197,10 +198,12 @@ const findAllSubFolder = async (folderId) => {
       },
     },
     {
-      $project: {
-        _id: 1,
-        name: 1,
-      },
+      $project: folderSelector
+        ? transferSelection(folderSelector)
+        : {
+            _id: 1,
+            name: 1,
+          },
     },
   ];
 
